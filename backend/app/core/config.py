@@ -8,7 +8,7 @@ load_dotenv()  # Lee .env
 
 # Supabase Auth
 SUPABASE_URL = os.getenv("SUPABASE_URL")
-SUPABASE_ANON_KEY = os.getenv("SUPABASE_SERVICE_KEY")
+SUPABASE_ANON_KEY = os.getenv("SUPABASE_ANON_KEY")
 #SUPABASE_ANON_KEY = os.getenv("SUPABASE_ANON_KEY")
 
 # PostgreSQL
