@@ -14,6 +14,8 @@ class SignUpIn(BaseModel):
 
     email: EmailStr
     password: str
+    nombre_persona: str
+    nombre_empresa: str 
 
     @field_validator("password")
     @classmethod
@@ -48,7 +50,9 @@ class SignUpSuccess(BaseModel):
     Este modelo se utiliza para enviar un mensaje de éxito al usuario.
     """
     message: str
-    email: Optional[EmailStr] = None
+    email: str
+    nombre_persona: str
+    nombre_empresa: str
 
 class RefreshTokenIn(BaseModel):
     """

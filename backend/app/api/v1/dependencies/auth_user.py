@@ -4,7 +4,7 @@ from fastapi import Depends, HTTPException, status
 from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
 #from app.core.supabase import supabase  # Asegúrate de que esta importación sea correcta
 from app.supabase.auth_service import supabase_auth  # Importa el cliente Supabase inicializado
-from app.api.schemas.auth_user import SupabaseUser  # o desde schemas si lo moviste
+from app.schemas.auth_user import SupabaseUser  # o desde schemas si lo moviste
 
 
 security = HTTPBearer()

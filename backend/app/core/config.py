@@ -11,6 +11,9 @@ SUPABASE_URL = os.getenv("SUPABASE_URL")
 SUPABASE_ANON_KEY = os.getenv("SUPABASE_ANON_KEY")
 #SUPABASE_ANON_KEY = os.getenv("SUPABASE_ANON_KEY")
 
+#PostgreSQL Supabase
+DATABASE_URL = os.getenv("DATABASE_URL")
+
 # PostgreSQL
 DB_HOST     = os.getenv("DB_HOST")
 DB_PORT     = os.getenv("DB_PORT")

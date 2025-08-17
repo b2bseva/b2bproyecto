@@ -3,13 +3,15 @@
 from app.schemas.auth import SignUpIn, SignUpSuccess, TokenOut, RefreshTokenIn, EmailOnlyIn
 from fastapi import APIRouter, Depends, HTTPException, status
 from app.api.v1.dependencies.auth_user import get_current_user  # dependencia que valida el JWT
+from app.api.v1.dependencies.database_supabase import get_db  # dependencia que proporciona la sesión de DB
 from app.supabase.auth_service import supabase_auth  # cliente Supabase inicializado
 from typing import Any, Dict, Union
 from app.schemas.user import UserOut
 from app.schemas.auth_user import SupabaseUser
 from app.utils.errores import handle_supabase_auth_error  # Importa la función para manejar errores de Supabase
 from supabase import AuthApiError  # Importa la excepción de error de Supabase
-
+from sqlalchemy.orm import Session
+from app.supabase.models.user_supabase import AuthUsuario, Rol, UsuarioRol  # Importa tus modelos de usuario
 
 router = APIRouter(prefix="/auth", tags=["auth"])
 
@@ -19,19 +21,50 @@ router = APIRouter(prefix="/auth", tags=["auth"])
     "/signup",
     response_model=Union[TokenOut, SignUpSuccess],
     status_code=status.HTTP_201_CREATED,
-    description="Crea un usuario en Supabase Auth."
+    description="Crea un usuario en Supabase Auth y su Perfil Inicial."
 )
-async def sign_up(data: SignUpIn) -> Union[TokenOut, SignUpSuccess]:
+async def sign_up(data: SignUpIn, db: Session = Depends(get_db)) -> Union[TokenOut, SignUpSuccess]:
     """
     Crea un usuario en Supabase Auth.
     - Si el registro es exitoso y no requiere confirmación, devuelve los tokens de acceso y actualización.
     - Si requiere confirmación de email, devuelve un mensaje de éxito con el email.
     """
+
+    #llama a la API de Supabase para crear un nuevo usuario
     try:
         signup_response = supabase_auth.auth.sign_up({
             "email": data.email,
             "password": data.password
         })
+
+        #si el registro fue exitoso en supabase auth
+        if  signup_response.user:
+            user_id = signup_response.user.id
+
+            # --- Paso 1: Inserta los datos adicionales en tu tabla Auth_Usuario ---
+            # Crea un nuevo registro en tu tabla de usuario personalizada
+            # Asume que ya existe una tabla AuthUsuario que se mapea a la de Supabase
+            new_user = AuthUsuario(
+                id_usuario=user_id,
+                email=data.email,
+                nombre_persona=data.nombre_persona,
+                nombre_empresa=data.nombre_empresa
+            )
+            db.add(new_user)
+            db.commit()
+
+            # --- Paso 2: Asigna el rol inicial de "Cliente" ---
+            # Primero, obtén el rol_id para "Cliente"
+            cliente_rol = db.query(Rol).filter(Rol.nombre == "Cliente").first()
+            if not cliente_rol:
+                raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail="Rol 'Cliente' no encontrado en la base de datos.")
+
+            # Asigna el rol al usuario en la tabla de unión
+            new_user_role = UsuarioRol(id_usuario=user_id, id_rol=cliente_rol.id_rol)
+            db.add(new_user_role)
+            db.commit()
+
+
 
         # Gotrue (la librería subyacente de Supabase Auth) ahora lanza AuthApiError
         # para errores, así que no necesitamos verificar signup_response.get("error")
