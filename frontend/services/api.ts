@@ -7,14 +7,6 @@ import {
     BriefcaseIcon,
 } from '../components/icons';
 
-const API_KEY = process.env.API_KEY;
-
-if (!API_KEY) {
-  console.warn("API_KEY environment variable not set. Gemini API calls will fail.");
-}
-
-//const ai = new GoogleGenAI({ apiKey: API_KEY! });
-
 export const MOCK_SERVICES: Service[] = [
     {
         id: '1',
@@ -165,47 +157,6 @@ export const MOCK_FAQS: Faq[] = [
         answer: 'Los clientes pueden encontrarte por categoría, palabras clave o ubicación. Tu perfil y tus calificaciones son clave para atraer nuevos proyectos.',
     },
 ];
-
-export const findRelevantServices = async (query: string, services: Service[]): Promise<{ success: boolean; data: string[] | null; error: string | null; }> => {
-    if (!API_KEY) {
-        const errorMsgForUser = "La función de búsqueda por IA no está disponible. Verifique la configuración de la API.";
-        console.error(errorMsgForUser);
-        return { success: false, data: null, error: errorMsgForUser };
-    }
-
-    try {
-        // Simplify service data for the prompt to save tokens
-        const servicesForPrompt = services.map(({ id, title, description, category }) => ({ id, title, description, category }));
-
-        // const response: GenerateContentResponse = await ai.models.generateContent({
-        //     model: "gemini-2.5-flash",
-        //     contents: `User query: "${query}". Available services: ${JSON.stringify(servicesForPrompt)}`,
-        //     config: {
-        //         systemInstruction: "You are an intelligent assistant for the 'Seva Empresas' B2B platform in Paraguay. Your task is to help users find the most relevant services based on their needs. Analyze the user's query and the provided list of available services. Return a JSON object with a single key 'relevant_service_ids' which is an array of strings, where each string is the ID of a relevant service. Prioritize relevance over exact keyword matching. If no services are relevant, return an empty array.",
-        //         responseMimeType: "application/json",
-        //         responseSchema: {
-        //             type: Type.OBJECT,
-        //             properties: {
-        //                 relevant_service_ids: {
-        //                     type: Type.ARRAY,
-        //                     description: "An array of strings, where each string is the ID of a relevant service.",
-        //                     items: { type: Type.STRING },
-        //                 },
-        //             },
-        //             required: ['relevant_service_ids'],
-        //         },
-        //     },
-        // });
-        
-  //      const jsonStr = response.text.trim();
-   //     const result = JSON.parse(jsonStr);
-   //     return { success: true, data: result.relevant_service_ids || [], error: null };
-
-    } catch (error) {
-        console.error("Error calling Gemini API:", error);
-        return { success: false, data: null, error: "Ocurrió un error al procesar la búsqueda con IA. Por favor, intente de nuevo." };
-    }
-};
 
 // Mock data for dashboard charts
 export const getReservationsChartData = (): ChartDataPoint[] => [

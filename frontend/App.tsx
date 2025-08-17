@@ -3,8 +3,8 @@ import React, { useState, useEffect, createContext, useContext, useCallback } fr
 import { HashRouter, Routes, Route, Link, useNavigate, useParams, useLocation, Outlet, Navigate } from 'react-router-dom';
 import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, BarChart, Bar, Legend } from 'recharts';
 import { Service, Category, Faq, User, UserRole, ChartDataPoint } from './types';
-import { MOCK_SERVICES, MOCK_CATEGORIES, MOCK_FAQS, findRelevantServices, getReservationsChartData, getRatingsChartData, getAdminUsersChartData, getAdminPublicationsChartData } from './services/api';
-import { StarIcon, CheckCircleIcon, ChevronDownIcon, MagnifyingGlassIcon, SparklesIcon, HomeIcon, BuildingStorefrontIcon, CalendarDaysIcon, UserCircleIcon, ArrowRightOnRectangleIcon, EllipsisVerticalIcon, ChartBarIcon, PaintBrushIcon, CodeBracketIcon, PresentationChartLineIcon, BriefcaseIcon, PlusCircleIcon, UsersIcon } from './components/icons';
+import { MOCK_SERVICES, MOCK_CATEGORIES, MOCK_FAQS, getReservationsChartData, getRatingsChartData, getAdminUsersChartData, getAdminPublicationsChartData } from './services/api';
+import { StarIcon, CheckCircleIcon, ChevronDownIcon, MagnifyingGlassIcon, SparklesIcon, HomeIcon, BuildingStorefrontIcon, CalendarDaysIcon, UserCircleIcon, ArrowRightOnRectangleIcon, EllipsisVerticalIcon, ChartBarIcon, PaintBrushIcon, CodeBracketIcon, PresentationChartLineIcon, BriefcaseIcon, PlusCircleIcon, UsersIcon, EyeIcon, EyeSlashIcon } from './components/icons';
 
 // --- AUTH CONTEXT & HOOK ---
 interface AuthContextType {
@@ -402,15 +402,6 @@ const MarketplacePage: React.FC = () => {
         setIsLoading(true);
         setSearchError(null);
         setFilteredIds([]); // Clear previous results while loading
-
-        const result = await findRelevantServices(searchQuery, MOCK_SERVICES);
-
-        if (result.success && result.data) {
-            setFilteredIds(result.data);
-        } else {
-            setSearchError(result.error);
-        }
-        
         setIsLoading(false);
     }, [searchQuery, services]);
 
@@ -591,6 +582,7 @@ const RegisterPage: React.FC = () => {
   const navigate = useNavigate();
   const { register } = useAuth();
   const [formData, setFormData] = useState({ companyName: '', name: '', email: '', password: '' });
+  const [passwordVisible, setPasswordVisible] = useState(false);
 
   const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     setFormData({ ...formData, [e.target.name]: e.target.value });
@@ -618,19 +610,48 @@ const RegisterPage: React.FC = () => {
                 <form className="space-y-6" onSubmit={handleSubmit}>
                     <div>
                         <label htmlFor="companyName" className="text-sm font-medium text-slate-700 block mb-2">Nombre de la empresa</label>
-                        <input type="text" name="companyName" id="companyName" value={formData.companyName} onChange={handleChange} className="w-full px-4 py-2 border border-slate-300 rounded-lg focus:ring-primary-500 focus:border-primary-500" required />
+                        <input type="text" name="companyName" id="companyName" value={formData.companyName} onChange={handleChange} className="w-full px-4 py-2 border border-slate-300 rounded-lg focus:ring-primary-500 focus:border-primary-500" placeholder ="Mi Empresa S.A." required />
                     </div>
                     <div>
                         <label htmlFor="name" className="text-sm font-medium text-slate-700 block mb-2">Nombre del Contacto</label>
-                        <input type="text" name="name" id="name" value={formData.name} onChange={handleChange} className="w-full px-4 py-2 border border-slate-300 rounded-lg focus:ring-primary-500 focus:border-primary-500" required />
+                        <input type="text" name="name" id="name" value={formData.name} onChange={handleChange} className="w-full px-4 py-2 border border-slate-300 rounded-lg focus:ring-primary-500 focus:border-primary-500" placeholder ="Juan Perez" required />
                     </div>
                     <div>
                         <label htmlFor="email" className="text-sm font-medium text-slate-700 block mb-2">Correo electrónico</label>
-                        <input type="email" name="email" id="email" value={formData.email} onChange={handleChange} className="w-full px-4 py-2 border border-slate-300 rounded-lg focus:ring-primary-500 focus:border-primary-500" required />
+                        <input type="email" name="email" id="email" value={formData.email} onChange={handleChange} className="w-full px-4 py-2 border border-slate-300 rounded-lg focus:ring-primary-500 focus:border-primary-500" placeholder ="micorreo@gmail.com"required />
                     </div>
                     <div>
-                        <label htmlFor="password"  className="text-sm font-medium text-slate-700 block mb-2">Contraseña</label>
-                        <input type="password" name="password" id="password" value={formData.password} onChange={handleChange} className="w-full px-4 py-2 border border-slate-300 rounded-lg focus:ring-primary-500 focus:border-primary-500" required />
+                        <label htmlFor="password" className="text-sm font-medium text-slate-700 block mb-2">Contraseña</label>
+                        {/* Envolvemos el input y el botón en un div con 'relative' para posicionar el icono */}
+                        <div className="relative">
+                            <input 
+                                // El tipo del input ahora depende de nuestro estado 'passwordVisible'
+                                type={passwordVisible ? "text" : "password"} 
+                                name="password" 
+                                id="password" 
+                                value={formData.password} 
+                                onChange={handleChange} 
+                                // Añadimos padding a la derecha (pr-10) para que el texto no se solape con el icono
+                                className="w-full px-4 py-2 pr-10 border border-slate-300 rounded-lg focus:ring-primary-500 focus:border-primary-500" 
+                                placeholder="Mínimo 8 caracteres"
+                                minLength ={8}
+                                required 
+                            />
+                            {/* Este es el botón con el icono del ojo */}
+                            <button 
+                                type="button" 
+                                onClick={() => setPasswordVisible(!passwordVisible)} // Al hacer clic, invierte el estado de visibilidad
+                                className="absolute inset-y-0 right-0 flex items-center pr-3 text-slate-500 hover:text-slate-700"
+                                aria-label={passwordVisible ? "Ocultar contraseña" : "Mostrar contraseña"}
+                            >
+                                {/* Mostramos un icono u otro dependiendo del estado */}
+                                {passwordVisible ? (
+                                    <EyeSlashIcon className="h-5 w-5" /> 
+                                ) : (
+                                    <EyeIcon className="h-5 w-5" />
+                                )}
+                            </button>
+                        </div>
                     </div>
                     <Button type="submit" variant="primary" className="w-full">Crear mi cuenta</Button>
                 </form>
