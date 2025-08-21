@@ -6,8 +6,25 @@ import {
     BriefcaseIcon,
 } from '../components/icons';
 
-// Configuración de la API
-const API_BASE_URL = 'http://localhost:8000/api/v1'; // URL del backend FastAPI con prefijo correcto
+// Configuración de la API - Detecta automáticamente el entorno
+const getApiBaseUrl = (): string => {
+    // Si estamos en Railway (producción), usar la URL del backend de Railway
+    if (window.location.hostname !== 'localhost' && window.location.hostname !== '127.0.0.1') {
+        // En Railway, el backend debe estar en la misma URL pero en el puerto 8000
+        // O usar una variable de entorno si está configurada
+        const backendUrl = (window as any).__ENV__?.VITE_BACKEND_URL || `${window.location.protocol}//${window.location.hostname}:8000`;
+        return `${backendUrl}/api/v1`;
+    }
+    
+    // En desarrollo local
+    return 'http://localhost:8000/api/v1';
+};
+
+const API_BASE_URL = getApiBaseUrl();
+
+// Log para debugging
+console.log('🔗 API Base URL:', API_BASE_URL);
+console.log('🌍 Environment:', window.location.hostname);
 
 // Función helper para manejar errores de la API
 const handleApiError = async (response: Response): Promise<AuthError> => {
@@ -30,6 +47,7 @@ export const authAPI = {
     // Registro de usuario
     async signUp(data: SignUpData): Promise<SignUpResponse | TokenResponse> {
         try {
+            console.log('🚀 Intentando registro en:', `${API_BASE_URL}/auth/signup`);
             const response = await fetch(`${API_BASE_URL}/auth/signup`, {
                 method: 'POST',
                 headers: {
@@ -45,6 +63,7 @@ export const authAPI = {
 
             return await response.json();
         } catch (error) {
+            console.error('❌ Error en signUp:', error);
             if (error instanceof Error) {
                 throw { detail: error.message };
             }
@@ -55,6 +74,7 @@ export const authAPI = {
     // Inicio de sesión
     async signIn(data: LoginData): Promise<TokenResponse> {
         try {
+            console.log('🔐 Intentando login en:', `${API_BASE_URL}/auth/signin`);
             const response = await fetch(`${API_BASE_URL}/auth/signin`, {
                 method: 'POST',
                 headers: {
@@ -70,6 +90,7 @@ export const authAPI = {
 
             return await response.json();
         } catch (error) {
+            console.error('❌ Error en signIn:', error);
             if (error instanceof Error) {
                 throw { detail: error.message };
             }
