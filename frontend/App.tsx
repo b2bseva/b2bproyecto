@@ -3,34 +3,101 @@ import React, { useState, useEffect, createContext, useContext, useCallback } fr
 import { HashRouter, Routes, Route, Link, useNavigate, useParams, useLocation, Outlet, Navigate } from 'react-router-dom';
 import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, BarChart, Bar, Legend } from 'recharts';
 import { Service, Category, Faq, User, UserRole, ChartDataPoint } from './types';
-import { MOCK_SERVICES, MOCK_CATEGORIES, MOCK_FAQS, getReservationsChartData, getRatingsChartData, getAdminUsersChartData, getAdminPublicationsChartData } from './services/api';
+import { MOCK_SERVICES, MOCK_CATEGORIES, MOCK_FAQS, getReservationsChartData, getRatingsChartData, getAdminUsersChartData, getAdminPublicationsChartData, authAPI } from './services/api';
 import { StarIcon, CheckCircleIcon, ChevronDownIcon, MagnifyingGlassIcon, SparklesIcon, HomeIcon, BuildingStorefrontIcon, CalendarDaysIcon, UserCircleIcon, ArrowRightOnRectangleIcon, EllipsisVerticalIcon, ChartBarIcon, PaintBrushIcon, CodeBracketIcon, PresentationChartLineIcon, BriefcaseIcon, PlusCircleIcon, UsersIcon, EyeIcon, EyeSlashIcon } from './components/icons';
 
 // --- AUTH CONTEXT & HOOK ---
 interface AuthContextType {
   user: User | null;
-  login: (role: UserRole) => void;
-  register: (data: { companyName: string; name: string; email: string; }) => void;
-  logout: () => void;
+  login: (email: string, password: string) => Promise<void>;
+  register: (data: { companyName: string; name: string; email: string; password: string }) => Promise<void>;
+  logout: () => Promise<void>;
   updateUser: (data: Partial<User>) => void;
+  isLoading: boolean;
+  error: string | null;
 }
+
 const AuthContext = createContext<AuthContextType | null>(null);
 
 const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const [user, setUser] = useState<User | null>(null);
+  const [isLoading, setIsLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
 
-  const login = (role: UserRole) => {
-    const mockUser: User = {
-      id: role === 'admin' ? 'admin01' : 'user01',
-      name: role === 'admin' ? 'Admin User' : 'Johan González',
-      email: role === 'admin' ? 'admin@seva.com' : 'johan@empresa.com',
-      role: role,
-      companyName: role === 'admin' ? 'Seva Platform' : 'Mi Empresa S.A.',
-    };
-    setUser(mockUser);
+  const login = async (email: string, password: string) => {
+    try {
+      setIsLoading(true);
+      setError(null);
+      
+      const response = await authAPI.signIn({ email, password });
+      
+      // Guardar tokens en localStorage
+      localStorage.setItem('access_token', response.access_token);
+      localStorage.setItem('refresh_token', response.refresh_token);
+      
+      // Obtener perfil del usuario
+      const profile = await authAPI.getProfile(response.access_token);
+      
+      const newUser: User = {
+        id: profile.id,
+        name: profile.email.split('@')[0], // Usar parte del email como nombre temporal
+        email: profile.email,
+        role: 'provider', // Por defecto, se puede cambiar según la lógica del backend
+        companyName: 'Mi Empresa', // Se puede obtener del perfil si está disponible
+      };
+      
+      setUser(newUser);
+    } catch (err: any) {
+      setError(err.detail || 'Error al iniciar sesión');
+      throw err;
+    } finally {
+      setIsLoading(false);
+    }
   };
 
-  const register = (data: { companyName: string; name: string; email: string; }) => {
+  const register = async (data: { companyName: string; name: string; email: string; password: string }) => {
+    try {
+      setIsLoading(true);
+      setError(null);
+      
+      // Validar contraseña antes de enviar
+      if (data.password.length < 8) {
+        setError('La contraseña debe tener al menos 8 caracteres');
+        return;
+      }
+      
+      if (!/[A-Z]/.test(data.password)) {
+        setError('La contraseña debe contener al menos una letra mayúscula');
+        return;
+      }
+      
+      if (!/[a-z]/.test(data.password)) {
+        setError('La contraseña debe contener al menos una letra minúscula');
+        return;
+      }
+      
+      if (!/\d/.test(data.password)) {
+        setError('La contraseña debe contener al menos un número');
+        return;
+      }
+      
+      if (!/[!@#$%^&*(),.?":{}|<>]/.test(data.password)) {
+        setError('La contraseña debe contener al menos un carácter especial (!@#$%^&*(),.?":{}|<>)');
+        return;
+      }
+      
+      const response = await authAPI.signUp({
+        email: data.email,
+        password: data.password,
+        nombre_persona: data.name,
+        nombre_empresa: data.companyName,
+      });
+      
+      // Si la respuesta incluye tokens, el usuario se autenticó automáticamente
+      if ('access_token' in response) {
+        localStorage.setItem('access_token', response.access_token);
+        localStorage.setItem('refresh_token', response.refresh_token);
+        
     const newUser: User = {
       id: `user_${Date.now()}`,
       role: 'provider',
@@ -39,10 +106,48 @@ const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => 
       email: data.email,
     };
     setUser(newUser);
+      } else {
+        // Si solo recibimos mensaje de confirmación, mostrar mensaje
+        setError(null);
+        // Aquí podrías mostrar un mensaje de éxito o redirigir a login
+      }
+    } catch (err: any) {
+      console.error('Error completo:', err);
+      
+      // Manejar diferentes tipos de errores
+      if (err.detail && Array.isArray(err.detail)) {
+        // Error de validación del backend
+        const errorMessages = err.detail.map((e: any) => e.msg || e.message || 'Error de validación').join(', ');
+        setError(errorMessages);
+      } else if (err.detail) {
+        // Error simple del backend
+        setError(err.detail);
+      } else if (err.message) {
+        // Error de JavaScript
+        setError(err.message);
+      } else {
+        // Error genérico
+        setError('Error al registrar usuario');
+      }
+      throw err;
+    } finally {
+      setIsLoading(false);
+    }
   };
 
-  const logout = () => {
+  const logout = async () => {
+    try {
+      const accessToken = localStorage.getItem('access_token');
+      if (accessToken) {
+        await authAPI.logout(accessToken);
+      }
+    } catch (err) {
+      console.error('Error al cerrar sesión:', err);
+    } finally {
+      localStorage.removeItem('access_token');
+      localStorage.removeItem('refresh_token');
     setUser(null);
+    }
   };
   
   const updateUser = (data: Partial<User>) => {
@@ -50,7 +155,7 @@ const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => 
   };
 
   return (
-    <AuthContext.Provider value={{ user, login, register, logout, updateUser }}>
+    <AuthContext.Provider value={{ user, login, register, logout, updateUser, isLoading, error }}>
       {children}
     </AuthContext.Provider>
   );
@@ -76,9 +181,14 @@ const Alert: React.FC<{
     info: 'bg-blue-50 border-blue-200 text-blue-800',
   };
 
+  // Asegurar que children sea un string válido
+  const displayContent = typeof children === 'string' ? children : 
+                        typeof children === 'object' && children !== null ? 
+                        JSON.stringify(children) : 'Error desconocido';
+
   return (
     <div className={`${baseClasses} ${variantClasses[variant]} ${className}`} role="alert">
-      {children}
+      {displayContent}
     </div>
   );
 };
@@ -211,9 +321,15 @@ const Header: React.FC = () => {
     const { user, logout } = useAuth();
     const navigate = useNavigate();
 
-    const handleLogout = () => {
-      logout();
+    const handleLogout = async () => {
+      try {
+        await logout();
       navigate('/');
+      } catch (err) {
+        console.error('Error al cerrar sesión:', err);
+        // Aún así redirigir al usuario
+        navigate('/');
+      }
     };
     
     return (
@@ -542,12 +658,22 @@ const ServiceDetailPage: React.FC = () => {
 
 const LoginPage: React.FC = () => {
     const navigate = useNavigate();
-    const { login } = useAuth();
-    const [selectedRole, setSelectedRole] = useState<UserRole | null>(null);
+    const { login, isLoading, error } = useAuth();
+    const [formData, setFormData] = useState({ email: '', password: '' });
 
-    const handleLogin = (role: UserRole) => {
-        login(role);
+    const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+        setFormData({ ...formData, [e.target.name]: e.target.value });
+    };
+
+    const handleSubmit = async (e: React.FormEvent) => {
+        e.preventDefault();
+        try {
+            await login(formData.email, formData.password);
         navigate('/dashboard');
+        } catch (err) {
+            // El error ya se maneja en el contexto
+            console.error('Error de login:', err);
+        }
     };
 
     return (
@@ -563,15 +689,49 @@ const LoginPage: React.FC = () => {
                             </Link>
                         </p>
                     </div>
-                    <div className="space-y-4">
-                        <p className="text-center text-sm font-medium text-slate-600">Para fines de demostración, seleccione un rol:</p>
-                        <Button onClick={() => handleLogin('provider')} variant={selectedRole === 'provider' ? 'primary' : 'secondary'} className="w-full">
-                            Ingresar como Proveedor
-                        </Button>
-                        <Button onClick={() => handleLogin('admin')} variant={selectedRole === 'admin' ? 'primary' : 'secondary'} className="w-full">
-                            Ingresar como Administrador
-                        </Button>
+                    
+                    {error && <Alert variant="error">{error}</Alert>}
+                    
+                    <form onSubmit={handleSubmit} className="space-y-6">
+                        <div>
+                            <label htmlFor="email" className="text-sm font-medium text-slate-700 block mb-2">
+                                Correo electrónico
+                            </label>
+                            <input
+                                type="email"
+                                name="email"
+                                id="email"
+                                value={formData.email}
+                                onChange={handleChange}
+                                className="w-full px-4 py-2 border border-slate-300 rounded-lg focus:ring-primary-500 focus:border-primary-500"
+                                placeholder="tu@email.com"
+                                required
+                            />
                     </div>
+                        <div>
+                            <label htmlFor="password" className="text-sm font-medium text-slate-700 block mb-2">
+                                Contraseña
+                            </label>
+                            <input
+                                type="password"
+                                name="password"
+                                id="password"
+                                value={formData.password}
+                                onChange={handleChange}
+                                className="w-full px-4 py-2 border border-slate-300 rounded-lg focus:ring-primary-500 focus:border-primary-500"
+                                placeholder="Tu contraseña"
+                                required
+                            />
+                        </div>
+                        <Button 
+                            type="submit" 
+                            variant="primary" 
+                            className="w-full"
+                            disabled={isLoading}
+                        >
+                            {isLoading ? 'Iniciando sesión...' : 'Iniciar sesión'}
+                        </Button>
+                    </form>
                 </div>
             </div>
         </MainLayout>
@@ -580,7 +740,7 @@ const LoginPage: React.FC = () => {
 
 const RegisterPage: React.FC = () => {
   const navigate = useNavigate();
-  const { register } = useAuth();
+  const { register, isLoading, error } = useAuth();
   const [formData, setFormData] = useState({ companyName: '', name: '', email: '', password: '' });
   const [passwordVisible, setPasswordVisible] = useState(false);
 
@@ -588,10 +748,20 @@ const RegisterPage: React.FC = () => {
     setFormData({ ...formData, [e.target.name]: e.target.value });
   };
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    register({ companyName: formData.companyName, name: formData.name, email: formData.email });
+    try {
+      await register({ 
+        companyName: formData.companyName, 
+        name: formData.name, 
+        email: formData.email, 
+        password: formData.password 
+      });
     navigate('/dashboard');
+    } catch (err) {
+      // El error ya se maneja en el contexto
+      console.error('Error de registro:', err);
+    }
   };
 
   return (
@@ -607,6 +777,8 @@ const RegisterPage: React.FC = () => {
                         </Link>
                     </p>
                 </div>
+                    
+                    {error && <Alert variant="error">{error}</Alert>}
                 <form className="space-y-6" onSubmit={handleSubmit}>
                     <div>
                         <label htmlFor="companyName" className="text-sm font-medium text-slate-700 block mb-2">Nombre de la empresa</label>
@@ -633,7 +805,7 @@ const RegisterPage: React.FC = () => {
                                 onChange={handleChange} 
                                 // Añadimos padding a la derecha (pr-10) para que el texto no se solape con el icono
                                 className="w-full px-4 py-2 pr-10 border border-slate-300 rounded-lg focus:ring-primary-500 focus:border-primary-500" 
-                                placeholder="Mínimo 8 caracteres"
+                                placeholder="Mín. 8 chars, mayúscula, minúscula, número y símbolo"
                                 minLength ={8}
                                 required 
                             />
@@ -652,8 +824,13 @@ const RegisterPage: React.FC = () => {
                                 )}
                             </button>
                         </div>
+                        <p className="mt-1 text-xs text-slate-500">
+                            La contraseña debe tener al menos 8 caracteres, una mayúscula, una minúscula, un número y un símbolo especial.
+                        </p>
                     </div>
-                    <Button type="submit" variant="primary" className="w-full">Crear mi cuenta</Button>
+                    <Button type="submit" variant="primary" className="w-full" disabled={isLoading}>
+                        {isLoading ? 'Creando cuenta...' : 'Crear mi cuenta'}
+                    </Button>
                 </form>
             </div>
         </div>
@@ -667,9 +844,15 @@ const DashboardLayout: React.FC = () => {
     const navigate = useNavigate();
     const location = useLocation();
 
-    const handleLogout = () => {
-        logout();
+    const handleLogout = async () => {
+        try {
+            await logout();
         navigate('/');
+        } catch (err) {
+            console.error('Error al cerrar sesión:', err);
+            // Aún así redirigir al usuario
+            navigate('/');
+        }
     };
 
     const navLinks = user?.role === 'admin' ? [

@@ -53,3 +53,33 @@ export interface ChartDataPoint {
     name: string; // e.g., 'Jan', 'Feb'
     value: number;
 }
+
+// Interfaces para autenticación
+export interface SignUpData {
+    email: string;
+    password: string;
+    nombre_persona: string;
+    nombre_empresa: string;
+}
+
+export interface SignUpResponse {
+    message: string;
+    user_id?: string;
+}
+
+export interface TokenResponse {
+    access_token: string;
+    refresh_token: string;
+    token_type: string;
+    expires_in: number;
+}
+
+export interface LoginData {
+    email: string;
+    password: string;
+}
+
+export interface AuthError {
+    detail: string;
+    status_code: number;
+}

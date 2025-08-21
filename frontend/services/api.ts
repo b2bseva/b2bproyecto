@@ -1,11 +1,153 @@
-//import { GoogleGenAI, Type, GenerateContentResponse } from "@google/genai";
-import { Service, Category, Faq, ChartDataPoint } from '../types';
+import { Service, Category, Faq, ChartDataPoint, SignUpData, SignUpResponse, TokenResponse, LoginData, AuthError } from '../types';
 import {
     PaintBrushIcon,
     CodeBracketIcon,
     PresentationChartLineIcon,
     BriefcaseIcon,
 } from '../components/icons';
+
+// Configuración de la API
+const API_BASE_URL = 'http://localhost:8000/api/v1'; // URL del backend FastAPI con prefijo correcto
+
+// Función helper para manejar errores de la API
+const handleApiError = async (response: Response): Promise<AuthError> => {
+    try {
+        const errorData = await response.json();
+        return {
+            detail: errorData.detail || 'Error desconocido',
+            status_code: response.status
+        };
+    } catch {
+        return {
+            detail: `Error ${response.status}: ${response.statusText}`,
+            status_code: response.status
+        };
+    }
+};
+
+// Funciones de autenticación
+export const authAPI = {
+    // Registro de usuario
+    async signUp(data: SignUpData): Promise<SignUpResponse | TokenResponse> {
+        try {
+            const response = await fetch(`${API_BASE_URL}/auth/signup`, {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                },
+                body: JSON.stringify(data),
+            });
+
+            if (!response.ok) {
+                const error = await handleApiError(response);
+                throw error;
+            }
+
+            return await response.json();
+        } catch (error) {
+            if (error instanceof Error) {
+                throw { detail: error.message };
+            }
+            throw error;
+        }
+    },
+
+    // Inicio de sesión
+    async signIn(data: LoginData): Promise<TokenResponse> {
+        try {
+            const response = await fetch(`${API_BASE_URL}/auth/signin`, {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                },
+                body: JSON.stringify(data),
+            });
+
+            if (!response.ok) {
+                const error = await handleApiError(response);
+                throw error;
+            }
+
+            return await response.json();
+        } catch (error) {
+            if (error instanceof Error) {
+                throw { detail: error.message };
+            }
+            throw error;
+        }
+    },
+
+    // Refrescar token
+    async refreshToken(refreshToken: string): Promise<TokenResponse> {
+        try {
+            const response = await fetch(`${API_BASE_URL}/auth/refresh`, {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                },
+                body: JSON.stringify({ refresh_token: refreshToken }),
+            });
+
+            if (!response.ok) {
+                const error = await handleApiError(response);
+                throw error;
+            }
+
+            return await response.json();
+        } catch (error) {
+            if (error instanceof Error) {
+                throw { detail: error.message };
+            }
+            throw error;
+        }
+    },
+
+    // Cerrar sesión
+    async logout(accessToken: string): Promise<void> {
+        try {
+            const response = await fetch(`${API_BASE_URL}/auth/logout`, {
+                method: 'POST',
+                headers: {
+                    'Authorization': `Bearer ${accessToken}`,
+                },
+            });
+
+            if (!response.ok) {
+                const error = await handleApiError(response);
+                throw error;
+            }
+        } catch (error) {
+            if (error instanceof Error) {
+                throw { detail: error.message };
+            }
+            throw error;
+        }
+    },
+
+    // Obtener perfil del usuario
+    async getProfile(accessToken: string) {
+        try {
+            const response = await fetch(`${API_BASE_URL}/auth/me`, {
+                method: 'GET',
+                headers: {
+                    'Authorization': `Bearer ${accessToken}`,
+                },
+            });
+
+            if (!response.ok) {
+                const error = await handleApiError(response);
+                throw error;
+            }
+
+            return await response.json();
+        } catch (error) {
+            if (error instanceof Error) {
+                throw { detail: error.message };
+            }
+            throw error;
+        }
+    }
+};
 
 export const MOCK_SERVICES: Service[] = [
     {
