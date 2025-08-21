@@ -1,17 +1,18 @@
-# app/models/rol
-# .py
-import uuid
-from sqlalchemy import Column, ForeignKey, String, Integer, DateTime
-from sqlalchemy.orm import relationship
+# app/models/rol.py
+from typing import List, Optional
+from uuid import UUID
+from sqlalchemy import Column, String
+from sqlalchemy.orm import relationship, Mapped
 from sqlalchemy.dialects.postgresql import UUID
-from app.supabase.db.db_supabase import Base # Asume que tienes una Base de SQLAlchemy
+from app.supabase.db.db_supabase import Base
+from app.models.usuario_rol import UsuarioRolModel
 
-class Rol(Base):
-    __tablename__ = "rol"
+class RolModel(Base):
+    __tablename__ = "rol"  # Nombre de la tabla en Supabase
 
-    id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
-    nombre = Column(String(100), nullable=False, unique=True)
-    descripcion = Column(String(200), nullable=True)
-
-    # Relación con la tabla de usuarios
-    usuarios = relationship("UsuarioRol", back_populates="rol")
+    id: Mapped[UUID] = Column(UUID(as_uuid=True), primary_key=True)
+    nombre: Mapped[str] = Column(String(100), nullable=False, unique=True)
+    descripcion: Mapped[Optional[str]] = Column(String(200), nullable=True)
+    
+    # Relación con la tabla de unión UsuarioRol (relación inversa)
+    usuarios_asociados: Mapped[List["UsuarioRolModel"]] = relationship(back_populates="rol")

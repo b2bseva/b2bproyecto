@@ -1,18 +1,20 @@
 # app/models/perfil.py
-import uuid
-from sqlalchemy import Column, ForeignKey, String, Integer, DateTime
-from sqlalchemy.orm import relationship
+from typing import List, Optional
+from uuid import UUID
+from sqlalchemy import Column, String
+from sqlalchemy.orm import relationship, Mapped
 from sqlalchemy.dialects.postgresql import UUID
-from app.supabase.db.db_supabase import Base # Asume que tienes una Base de SQLAlchemy
+from app.supabase.db.db_supabase import Base
+from app.models.usuario_rol import UsuarioRolModel
 
-class AuthUsuario(Base):
-    __tablename__ = "usuario_perfil" # Nombre de la tabla en tu BD de Supabase
+class UserModel(Base):
+    __tablename__ = "users"  # Nombre de la tabla en Supabase
     
-    id_usuario = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
-    id_user = Column(UUID(as_uuid=True), ForeignKey("auth.users.id"), nullable=False)  # relación con Supabase auth.users
-    email = Column(String(80), nullable=False, unique=True)
-    nombre_persona = Column(String(100), nullable=False)
-    nombre_empresa = Column(String(100), nullable=False)
+    # Clave primaria que coincide con auth.users.id (manejada por el trigger)
+    id: Mapped[UUID] = Column(UUID(as_uuid=True), primary_key=True)
+    nombre_persona: Mapped[str] = Column(String(100), nullable=False)
+    nombre_empresa: Mapped[str] = Column(String(100), nullable=True)
 
-    # Relación con la tabla de roles
-    #rol = relationship("UsuarioRol", back_populates="usuario")
+    # Relación con la tabla de unión UsuarioRol (relación muchos a muchos)
+    roles: Mapped[List["UsuarioRolModel"]] = relationship(back_populates="usuario")
+

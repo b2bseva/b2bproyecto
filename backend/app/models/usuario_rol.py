@@ -1,16 +1,19 @@
 # app/models/usuario_rol.py
-import uuid
-from sqlalchemy import Column, ForeignKey, String, Integer, DateTime
-from sqlalchemy.orm import relationship
+from typing import Optional
+from uuid import UUID
+from sqlalchemy import Column, ForeignKey
+from sqlalchemy.orm import relationship, Mapped
 from sqlalchemy.dialects.postgresql import UUID
-from app.supabase.db.db_supabase import Base # Asume que tienes una Base de SQLAlchemy
+from app.supabase.db.db_supabase import Base
+from app.models import RolModel, UserModel
 
-class UsuarioRol(Base):
-    __tablename__ = "usuario_rol"
+class UsuarioRolModel(Base):
+    __tablename__ = "usuario_rol"  # Nombre de la tabla en Supabase
+    
+    # Clave primaria compuesta por las dos claves foráneas
+    id_usuario: Mapped[UUID] = Column(UUID(as_uuid=True), ForeignKey("users.id"), primary_key=True)
+    id_rol: Mapped[UUID] = Column(UUID(as_uuid=True), ForeignKey("rol.id"), primary_key=True)
 
-    id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
-    id_user = Column(UUID(as_uuid=True), ForeignKey("auth.users.id"), nullable=False)  # relación con Supabase auth.users
-    id_rol = Column(UUID(as_uuid=True), ForeignKey("rol.id"), nullable=False)
-
-   # Relación con la tabla de roles
-    rol = relationship("Rol", back_populates="usuario")
+    # Relaciones bidireccionales para acceder al usuario y al rol asociados
+    usuario: Mapped["UserModel"] = relationship(back_populates="roles")
+    rol: Mapped["RolModel"] = relationship(back_populates="usuarios_asociados")

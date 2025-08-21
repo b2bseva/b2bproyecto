@@ -9,6 +9,7 @@ load_dotenv()  # Lee .env
 # Supabase Auth
 SUPABASE_URL = os.getenv("SUPABASE_URL")
 SUPABASE_ANON_KEY = os.getenv("SUPABASE_ANON_KEY")
+SUPABASE_SERVICE_ROLE_KEY = os.getenv("SERVICE_ROLE")
 #SUPABASE_ANON_KEY = os.getenv("SUPABASE_ANON_KEY")
 
 #PostgreSQL Supabase
@@ -21,9 +22,7 @@ DB_NAME     = os.getenv("DB_NAME")
 DB_USER     = os.getenv("DB_USER")
 DB_PASSWORD = os.getenv("DB_PASSWORD")
 
-DATABASE_URL = (
-  f"postgresql://{DB_USER}:{DB_PASSWORD}@{DB_HOST}:{DB_PORT}/{DB_NAME}"
-)
+#DATABASE_URL = (f"postgresql://{DB_USER}:{DB_PASSWORD}@{DB_HOST}:{DB_PORT}/{DB_NAME}")
 
 #Weaviate
 #WEAVIATE_URL = os.getenv("WEAVIATE_URL")

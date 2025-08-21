@@ -12,9 +12,14 @@ from app.schemas.auth_user import SupabaseUser
 from app.utils.errores import handle_supabase_auth_error  # Importa la función para manejar errores de Supabase
 from supabase import AuthApiError  # Importa la excepción de error de Supabase
 from sqlalchemy.ext.asyncio import AsyncSession 
-from app.models.usuario_rol import UsuarioRol  # Importa tus modelos de usuario
-from app.models.rol import Rol  # Importa tus modelos de rol
-from app.models.perfil import AuthUsuario  # Importa tu modelo de perfil
+from app.models.usuario_rol import UsuarioRolModel  # Importa tus modelos actualizados
+from app.models.rol import RolModel  # Importa tus modelos actualizados
+from app.models.perfil import UserModel  # Importa tu modelo actualizado
+import logging
+from sqlalchemy.exc import SQLAlchemyError
+
+# Configurar logging
+logger = logging.getLogger(__name__)
 
 router = APIRouter(prefix="/auth", tags=["auth"])
 
@@ -24,43 +29,132 @@ router = APIRouter(prefix="/auth", tags=["auth"])
     "/signup",
     response_model=Union[TokenOut, SignUpSuccess],
     status_code=status.HTTP_201_CREATED,
-    description="Crea un usuario en Supabase Auth y su perfil inicial."
+    description="Crea un usuario en Supabase Auth. El perfil y rol se crean automáticamente via trigger."
 )
 async def sign_up(data: SignUpIn, db: AsyncSession = Depends(get_async_db)) -> Union[TokenOut, SignUpSuccess]:
     try:
-        # --- Paso 1: Crear usuario en Supabase Auth ---
-        signup_response = supabase_auth.sign_up({
+        logger.info(f"Iniciando registro para usuario: {data.email}")
+        
+        # --- Paso 1: Crear usuario en Supabase Auth con metadata ---
+        # La metadata se enviará al trigger para crear automáticamente el perfil y asignar el rol "Cliente"
+        signup_data = {
             "email": data.email,
             "password": data.password,
-        })
+            "options": {
+                "data": {
+                    "nombre_persona": data.nombre_persona,
+                    "nombre_empresa": data.nombre_empresa
+                }
+            }
+        }
+        
+        logger.info(f"Enviando datos a Supabase Auth: {signup_data}")
+        signup_response = supabase_auth.auth.sign_up(signup_data)
 
         if not signup_response.user:
             handle_supabase_auth_error("Respuesta de Supabase incompleta (no hay user)")
 
         id_user = str(signup_response.user.id)
+        logger.info(f"Usuario creado en Supabase Auth con ID: {id_user}")
 
-        # Paso 2 y 3: Transacción para crear perfil y asignar rol
-        #esto no libera de hacer commit y rollback de forma manual
-        async with db.begin():
-            # Inserta perfil en tabla de perfiles (usando un ORM)
-            new_profile = AuthUsuario(
-                id_user=id_user,
-                email=data.email,
-                nombre_persona=data.nombre_persona,
-                nombre_empresa=data.nombre_empresa,
+        # --- Paso 2: Verificar que el trigger funcionó correctamente ---
+        # Esperamos un momento para que el trigger se ejecute
+        import asyncio
+        await asyncio.sleep(2)  # Aumentamos el tiempo de espera
+
+        # Verificar que el perfil se creó con manejo de errores de conexión
+        try:
+            logger.info(f"Verificando si el perfil se creó para el usuario: {id_user}")
+            result = await db.execute(select(UserModel).filter(UserModel.id == id_user))
+            user_profile = result.scalars().first()
+
+            if not user_profile:
+                logger.error(f"El perfil no se creó para el usuario: {id_user}")
+                # Intentar crear el perfil manualmente como fallback
+                try:
+                    logger.info("Intentando crear perfil manualmente como fallback")
+                    new_profile = UserModel(
+                        id=id_user,
+                        nombre_persona=data.nombre_persona,
+                        nombre_empresa=data.nombre_empresa
+                    )
+                    db.add(new_profile)
+                    await db.commit()
+                    logger.info("Perfil creado manualmente exitosamente")
+                except SQLAlchemyError as e:
+                    logger.error(f"Error al crear perfil manualmente: {e}")
+                    await db.rollback()
+                    raise HTTPException(
+                        status_code=500, 
+                        detail=f"Error: El perfil del usuario no se creó automáticamente. Error del trigger: {str(e)}"
+                    )
+        except SQLAlchemyError as e:
+            logger.error(f"Error de base de datos al verificar perfil: {e}")
+            # Intentar recrear la conexión
+            try:
+                await db.close()
+                # Aquí deberías obtener una nueva sesión, pero por ahora usamos fallback
+                raise HTTPException(
+                    status_code=500, 
+                    detail=f"Error de conexión a la base de datos: {str(e)}"
+                )
+            except Exception as reconnect_error:
+                logger.error(f"Error al intentar reconectar: {reconnect_error}")
+                raise HTTPException(
+                    status_code=500, 
+                    detail="Error de conexión a la base de datos. Inténtalo de nuevo."
+                )
+
+        # Verificar que el rol "Cliente" se asignó con manejo de errores
+        try:
+            logger.info(f"Verificando si el rol 'Cliente' se asignó para el usuario: {id_user}")
+            result = await db.execute(
+                select(UsuarioRolModel)
+                .join(RolModel)
+                .filter(
+                    UsuarioRolModel.id_usuario == id_user,
+                    RolModel.nombre == "Cliente"
+                )
             )
-            db.add(new_profile)
+            user_role = result.scalars().first()
 
-            # Busca rol "Cliente" (usando un ORM)
-            result = await db.execute(select(Rol).filter(Rol.nombre == "Cliente"))
-            cliente_rol = result.scalars().first()
+            if not user_role:
+                logger.error(f"El rol 'Cliente' no se asignó para el usuario: {id_user}")
+                # Intentar asignar el rol manualmente como fallback
+                try:
+                    logger.info("Intentando asignar rol manualmente como fallback")
+                    result = await db.execute(select(RolModel).filter(RolModel.nombre == "Cliente"))
+                    cliente_rol = result.scalars().first()
+                    
+                    if cliente_rol:
+                        new_user_role = UsuarioRolModel(
+                            id_usuario=id_user,
+                            id_rol=cliente_rol.id
+                        )
+                        db.add(new_user_role)
+                        await db.commit()
+                        logger.info("Rol asignado manualmente exitosamente")
+                    else:
+                        logger.error("Rol 'Cliente' no encontrado en la base de datos")
+                        raise HTTPException(
+                            status_code=500, 
+                            detail="Error: El rol 'Cliente' no existe en la base de datos"
+                        )
+                except SQLAlchemyError as e:
+                    logger.error(f"Error al asignar rol manualmente: {e}")
+                    await db.rollback()
+                    raise HTTPException(
+                        status_code=500, 
+                        detail=f"Error: El rol 'Cliente' no se asignó automáticamente. Error del trigger: {str(e)}"
+                    )
+        except SQLAlchemyError as e:
+            logger.error(f"Error de base de datos al verificar rol: {e}")
+            raise HTTPException(
+                status_code=500, 
+                detail=f"Error de conexión al verificar roles: {str(e)}"
+            )
 
-            if not cliente_rol:
-                raise HTTPException(status_code=500, detail="Rol 'Cliente' no encontrado")
-
-            # Asigna relación usuario-rol
-            new_user_role = UsuarioRol(usuario_id=id_user, rol_id=cliente_rol.id_rol)
-            db.add(new_user_role)
+        logger.info(f"Registro completado exitosamente para usuario: {id_user}")
 
         # --- Manejo de confirmación de email ---
         if not signup_response.session:
@@ -78,8 +172,16 @@ async def sign_up(data: SignUpIn, db: AsyncSession = Depends(get_async_db)) -> U
         )
 
     except AuthApiError as e:
+        logger.error(f"Error de Supabase Auth: {e}")
         handle_supabase_auth_error(e)
+    except SQLAlchemyError as e:
+        logger.error(f"Error de base de datos: {e}")
+        raise HTTPException(
+            status_code=500,
+            detail=f"Error de base de datos: {str(e)}"
+        )
     except Exception as e:
+        logger.error(f"Error inesperado al registrar el usuario: {e}")
         raise HTTPException(
             status_code=500,
             detail=f"Error inesperado al registrar el usuario: {str(e)}"
