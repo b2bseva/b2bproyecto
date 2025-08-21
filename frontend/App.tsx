@@ -271,7 +271,7 @@ const Footer: React.FC = () => (
                  <div>
                     <h4 className="font-semibold text-slate-700">Contacto</h4>
                     <ul className="mt-2 space-y-1 text-sm">
-                        <li><a href="mailto:ayuda@seva.com.py" className="hover:text-primary-600">ayuda@seva.com.py</a></li>
+                        <li><a href="mailto:b2bseva.notificaciones@gmail.com" className="hover:text-primary-600">b2bseva.notificaciones@gmail.com</a></li>
                         <li>Asunción, Paraguay</li>
                     </ul>
                 </div>
