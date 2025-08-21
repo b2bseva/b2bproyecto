@@ -4,7 +4,7 @@
     "builder": "NIXPACKS"
   },
   "deploy": {
-    "startCommand": "cd backend && pip install --upgrade pip && pip install -r requirements.txt && python -c 'import asyncpg; print(\"asyncpg OK\")' && uvicorn main:app --host 0.0.0.0 --port $PORT",
+    "startCommand": "pip install --upgrade pip && pip install -r backend/requirements.txt && python -c 'import asyncpg; print(\"asyncpg OK\")' && cd backend && uvicorn main:app --host 0.0.0.0 --port $PORT",
     "healthcheckPath": "/",
     "healthcheckTimeout": 300,
     "restartPolicyType": "ON_FAILURE",
