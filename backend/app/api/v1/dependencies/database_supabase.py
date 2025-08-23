@@ -1,5 +1,6 @@
 from typing import Generator
-from fastapi import logger
+#from fastapi import logger
+import logging
 from sqlalchemy.ext.asyncio import AsyncSession
 from app.supabase.db.db_supabase import AsyncSessionLocal, SessionLocal
 
@@ -10,6 +11,8 @@ from app.supabase.db.db_supabase import AsyncSessionLocal, SessionLocal
         #yield db  #proporciona la sesion a los endpoints que la necesitan
     #finally:
         #db.close() #cierra la sesion despues de que se completa la peticion
+
+logger = logging.getLogger(__name__)
 
 # Función síncrona para obtener sesión de base de datos
 def get_db():

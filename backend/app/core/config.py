@@ -10,10 +10,12 @@ load_dotenv()  # Lee .env
 SUPABASE_URL = os.getenv("SUPABASE_URL")
 SUPABASE_ANON_KEY = os.getenv("SUPABASE_ANON_KEY")
 SUPABASE_SERVICE_ROLE_KEY = os.getenv("SERVICE_ROLE")
-#SUPABASE_ANON_KEY = os.getenv("SUPABASE_ANON_KEY")
 
 #PostgreSQL Supabase
 DATABASE_URL = os.getenv("DATABASE_URL")
+
+#PostgreSQL Local
+DATABASE_URL_LOCAL = os.getenv("DATABASE_URL_LOCAL")
 
 # PostgreSQL
 DB_HOST     = os.getenv("DB_HOST")

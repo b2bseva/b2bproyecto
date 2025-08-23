@@ -1,22 +1,23 @@
 #autenticacion supabase
 # app/api/v1/routers/auth.py
-from sqlalchemy import select
-from app.schemas.auth import SignUpIn, SignUpSuccess, TokenOut, RefreshTokenIn, EmailOnlyIn
+from sqlalchemy import UUID, select
+from app.schemas.auth import SignInIn, SignUpIn, SignUpSuccess, TokenOut, RefreshTokenIn, EmailOnlyIn
 from fastapi import APIRouter, Depends, HTTPException, status
 from app.api.v1.dependencies.auth_user import get_current_user  # dependencia que valida el JWT
 from app.api.v1.dependencies.database_supabase import get_async_db  # dependencia que proporciona la sesión de DB
 from app.supabase.auth_service import supabase_auth  # cliente Supabase inicializado
 from typing import Any, Dict, Union
-from app.schemas.user import UserOut
+from app.schemas.user import UserProfileAndRolesOut
 from app.schemas.auth_user import SupabaseUser
 from app.utils.errores import handle_supabase_auth_error  # Importa la función para manejar errores de Supabase
 from supabase import AuthApiError  # Importa la excepción de error de Supabase
 from sqlalchemy.ext.asyncio import AsyncSession 
-from app.models.usuario_rol import UsuarioRolModel  # Importa tus modelos actualizados
-from app.models.rol import RolModel  # Importa tus modelos actualizados
+from app.models.usuario_rol import UsuarioRolModel  
+from app.models.rol import RolModel  
 from app.models.perfil import UserModel  # Importa tu modelo actualizado
 import logging
 from sqlalchemy.exc import SQLAlchemyError
+from sqlalchemy.orm import joinedload
 
 # Configurar logging
 logger = logging.getLogger(__name__)
@@ -192,7 +193,7 @@ async def sign_up(data: SignUpIn, db: AsyncSession = Depends(get_async_db)) -> U
 @router.post("/signin", response_model=TokenOut,
             status_code=status.HTTP_200_OK,
             description="Autentica un usuario con email y contraseña y devuelve sus tokens de acceso y refresh.")
-async def sign_in(data: SignUpIn) -> TokenOut:
+async def sign_in(data: SignInIn) -> TokenOut:
     """
     Autentica un usuario con email y contraseña y devuelve sus tokens.
     """
@@ -279,6 +280,30 @@ async def refresh_token(data: RefreshTokenIn) -> TokenOut:
         )
 
 
+@router.post("/resend-confirmation-email",
+             status_code=status.HTTP_200_OK,
+             description="Re-envia un correo de confirmacion para verificar la cuenta.")
+async def resend_confirmation_email(data: EmailOnlyIn):
+    """
+    Re-envia un correo de confirmacion de email para verificar la cuenta del usuario.
+    """
+    try:
+        supabase_auth.auth.resend({
+            "type": "signup",
+            "email": data.email
+        })
+        
+        return {"message": f"Se ha enviado un nuevo correo de confirmacion a {data.email}. Por favor, revisa tu bandeja de entrada."}
+
+    except AuthApiError as e:
+        handle_supabase_auth_error(e)
+    except Exception as e:
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Ha ocurrido un error inesperado al re-enviar el correo de confirmaci?n: {str(e)}"
+        )
+
+
 @router.post("/logout", status_code=status.HTTP_204_NO_CONTENT)
 async def logout(current_user: SupabaseUser = Depends(get_current_user)):
     """
@@ -331,10 +356,33 @@ async def forgot_password(data: EmailOnlyIn):
 @router.get("/me",
             status_code=status.HTTP_200_OK,
             description="Devuelve la información del usuario autenticado.")
-async def read_profile(current_user: SupabaseUser = Depends(get_current_user)) -> UserOut:
+async def read_profile(current_user: SupabaseUser = Depends(get_current_user),
+                       db: AsyncSession = Depends(get_async_db)) -> UserProfileAndRolesOut:
     """
     Devuelve la información del usuario autenticado.
     """
-    return UserOut(id=current_user.id,
-                   email=current_user.email)
 
+    # 1. Recuperar el perfil del usuario de la base de datos
+    # Se utiliza joinedload para cargar los roles de forma eficiente en una sola consulta.
+    result_profile = await db.execute(
+        select(UserModel)
+        .options(joinedload(UserModel.roles))
+        .where(UserModel.id == UUID(current_user.id))
+    )
+
+    user_profile = result_profile.scalars().first()
+    
+    if not user_profile:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Perfil de usuario no encontrado")
+
+    # 2. Extraer los nombres de los roles de la lista de objetos de rol
+    roles_nombres = [rol_asociado.rol.nombre for rol_asociado in user_profile.roles]
+
+    # 3. Construir y devolver la respuesta final
+    return UserProfileAndRolesOut(
+        id=user_profile.id,
+        email=current_user.email, # El email se obtiene de la autenticacion
+        nombre_persona=user_profile.nombre_persona,
+        nombre_empresa=user_profile.nombre_empresa,
+        roles=roles_nombres
+    )
