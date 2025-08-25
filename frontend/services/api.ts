@@ -6,6 +6,7 @@ import {
     BriefcaseIcon,
 } from '../components/icons';
 
+
 // Configuración de la API - Detecta automáticamente el entorno
 const getApiBaseUrl = (): string => {
     // Si estamos en Railway (producción), usar la URL del backend de Railway
@@ -21,6 +22,8 @@ const getApiBaseUrl = (): string => {
 };
 
 const API_BASE_URL = getApiBaseUrl();
+
+///const API_BASE_URL = getApiBaseUrl();
 
 // Log para debugging
 console.log('🔗 API Base URL:', API_BASE_URL);

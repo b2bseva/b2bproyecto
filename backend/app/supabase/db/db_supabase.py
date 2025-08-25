@@ -30,7 +30,13 @@ if not DATABASE_URL:
         "Verifica que el archivo .env existe y contiene DATABASE_URL."
     )
 
-logger.info(f"🔗 Intentando conectar a la base de datos (Transaction Pooler): {DATABASE_URL}")
+#logger.info(f"🔗 Intentando conectar a la base de datos (Transaction Pooler): {DATABASE_URL}")
+
+# --- ✨ CORRECCIÓN: Añadir el parámetro sslmode=require a la URL ---
+# Supabase Transaction Pooler (PgBouncer) requiere explícitamente SSL.
+#db_url_sync = f"{DATABASE_URL}?sslmode=require"
+#logger.info(f"🔗 Intentando conectar a la base de datos (Transaction Pooler) con URL: {db_url_sync}")
+
 
 # Crear engine síncrono
 try:

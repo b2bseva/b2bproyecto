@@ -5,7 +5,7 @@ from sqlalchemy import Column, String
 from sqlalchemy.orm import relationship, Mapped
 from sqlalchemy.dialects.postgresql import UUID
 from app.supabase.db.db_supabase import Base
-from app.models.usuario_rol import UsuarioRolModel
+from app.models2.usuario_rol import UsuarioRolModel
 
 class UserModel(Base):
     __tablename__ = "users"  # Nombre de la tabla en Supabase

@@ -83,3 +83,36 @@ export interface AuthError {
     detail: string;
     status_code: number;
 }
+
+// Nuevas interfaces para onboarding de proveedor
+export interface DocumentUpload {
+  id: string;
+  name: string;
+  status: 'pending' | 'uploaded' | 'observado' | 'aprobado' | 'rechazado';
+  file?: File;
+  isOptional: boolean;
+  description: string;
+}
+
+export interface ProviderOnboardingData {
+  company: {
+    legalName: string;
+    tradeName: string;
+  };
+  address: {
+    department: string;
+    city: string;
+    neighborhood: string;
+    street: string;
+    number: string;
+    reference: string;
+    coords: { lat: number; lng: number } | null;
+  };
+  branch: {
+    name: string;
+    phone: string;
+    email: string;
+    useFiscalAddress: boolean;
+  };
+  documents: Record<string, DocumentUpload>;
+}

@@ -1,18 +1,52 @@
 
-import React, { useState, useEffect, createContext, useContext, useCallback } from 'react';
+import React, { useState, useEffect, createContext, useContext, useCallback, useRef } from 'react';
 import { HashRouter, Routes, Route, Link, useNavigate, useParams, useLocation, Outlet, Navigate } from 'react-router-dom';
 import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, BarChart, Bar, Legend } from 'recharts';
-import { Service, Category, Faq, User, UserRole, ChartDataPoint } from './types';
+import { Service, Category, Faq, User, UserRole, ChartDataPoint, ProviderOnboardingData, DocumentUpload } from './types';
 import { MOCK_SERVICES, MOCK_CATEGORIES, MOCK_FAQS, getReservationsChartData, getRatingsChartData, getAdminUsersChartData, getAdminPublicationsChartData, authAPI } from './services/api';
-import { StarIcon, CheckCircleIcon, ChevronDownIcon, MagnifyingGlassIcon, SparklesIcon, HomeIcon, BuildingStorefrontIcon, CalendarDaysIcon, UserCircleIcon, ArrowRightOnRectangleIcon, EllipsisVerticalIcon, ChartBarIcon, PaintBrushIcon, CodeBracketIcon, PresentationChartLineIcon, BriefcaseIcon, PlusCircleIcon, UsersIcon, EyeIcon, EyeSlashIcon } from './components/icons';
+import { StarIcon, CheckCircleIcon, ChevronDownIcon, MagnifyingGlassIcon, SparklesIcon, HomeIcon, BuildingStorefrontIcon, CalendarDaysIcon, UserCircleIcon, ArrowRightOnRectangleIcon, EllipsisVerticalIcon, ChartBarIcon, PaintBrushIcon, CodeBracketIcon, PresentationChartLineIcon, BriefcaseIcon, PlusCircleIcon, UsersIcon, EyeIcon, EyeSlashIcon, ClockIcon, UploadCloudIcon, MapPinIcon, ExclamationCircleIcon } from './components/icons';
+
+// Datos iniciales para el onboarding de proveedor
+const initialOnboardingData: ProviderOnboardingData = {
+    company: {
+        legalName: '',
+        tradeName: '',
+    },
+    address: {
+        department: '',
+        city: '',
+        neighborhood: '',
+        street: '',
+        number: '',
+        reference: '',
+        coords: null,
+    },
+    branch: {
+        name: '',
+        phone: '',
+        email: '',
+        useFiscalAddress: true,
+    },
+    documents: {
+        'ruc': { id: 'ruc', name: 'RUC', status: 'pending', isOptional: false, description: 'Registro Único de Contribuyente' },
+        'patente': { id: 'patente', name: 'Patente Municipal', status: 'pending', isOptional: false, description: 'Patente comercial vigente' },
+        'contrato': { id: 'contrato', name: 'Contrato Social', status: 'pending', isOptional: false, description: 'Contrato social de la empresa' },
+        'balance': { id: 'balance', name: 'Balance Anual', status: 'pending', isOptional: true, description: 'Balance del último año fiscal' },
+        'certificado': { id: 'certificado', name: 'Certificado de Antecedentes', status: 'pending', isOptional: true, description: 'Certificado de antecedentes comerciales' },
+        'certificaciones': { id: 'certificaciones', name: 'Certificaciones de Calidad', status: 'pending', isOptional: true, description: 'Certificaciones de calidad o internacionales' },
+        'certificados_rubro': { id: 'certificados_rubro', name: 'Certificados del Rubro', status: 'pending', isOptional: true, description: 'Certificados varios del rubro' },
+    },
+};
 
 // --- AUTH CONTEXT & HOOK ---
 interface AuthContextType {
   user: User | null;
+  providerStatus: 'none' | 'pending' | 'approved';
   login: (email: string, password: string) => Promise<void>;
   register: (data: { companyName: string; name: string; email: string; password: string }) => Promise<void>;
   logout: () => Promise<void>;
   updateUser: (data: Partial<User>) => void;
+  submitProviderApplication: () => void;
   isLoading: boolean;
   error: string | null;
 }
@@ -21,6 +55,7 @@ const AuthContext = createContext<AuthContextType | null>(null);
 
 const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const [user, setUser] = useState<User | null>(null);
+  const [providerStatus, setProviderStatus] = useState<'none' | 'pending' | 'approved'>('none');
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -39,14 +74,15 @@ const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => 
       const profile = await authAPI.getProfile(response.access_token);
       
       const newUser: User = {
-        id: profile.id,
-        name: profile.email.split('@')[0], // Usar parte del email como nombre temporal
-        email: profile.email,
-        role: 'provider', // Por defecto, se puede cambiar según la lógica del backend
-        companyName: 'Mi Empresa', // Se puede obtener del perfil si está disponible
+        id: profile.id || `user_${Date.now()}`,
+        name: profile.email?.split('@')[0] || 'Usuario', // Usar parte del email como nombre temporal
+        email: profile.email || email,
+        role: 'client', // Por defecto, todos los usuarios son clientes
+        companyName: profile.nombre_empresa || 'Mi Empresa', // Se puede obtener del perfil si está disponible
       };
       
       setUser(newUser);
+      setProviderStatus('none'); // Estado inicial para clientes
     } catch (err: any) {
       setError(err.detail || 'Error al iniciar sesión');
       throw err;
@@ -98,14 +134,15 @@ const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => 
         localStorage.setItem('access_token', response.access_token);
         localStorage.setItem('refresh_token', response.refresh_token);
         
-    const newUser: User = {
-      id: `user_${Date.now()}`,
-      role: 'provider',
-      companyName: data.companyName,
-      name: data.name,
-      email: data.email,
-    };
-    setUser(newUser);
+        const newUser: User = {
+          id: `user_${Date.now()}`,
+          role: 'client', // Por defecto, todos los usuarios son clientes
+          companyName: data.companyName,
+          name: data.name,
+          email: data.email,
+        };
+        setUser(newUser);
+        setProviderStatus('none'); // Estado inicial para clientes
       } else {
         // Si solo recibimos mensaje de confirmación, mostrar mensaje
         setError(null);
@@ -146,16 +183,22 @@ const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => 
     } finally {
       localStorage.removeItem('access_token');
       localStorage.removeItem('refresh_token');
-    setUser(null);
+      setUser(null);
     }
   };
   
   const updateUser = (data: Partial<User>) => {
-      setUser(prevUser => prevUser ? { ...prevUser, ...data } : null);
+    setUser(prevUser => prevUser ? { ...prevUser, ...data } : null);
+  };
+
+  const submitProviderApplication = () => {
+    if (user && user.role === 'client') {
+      setProviderStatus('pending');
+    }
   };
 
   return (
-    <AuthContext.Provider value={{ user, login, register, logout, updateUser, isLoading, error }}>
+    <AuthContext.Provider value={{ user, providerStatus, login, register, logout, updateUser, submitProviderApplication, isLoading, error }}>
       {children}
     </AuthContext.Provider>
   );
@@ -312,7 +355,7 @@ const CustomChart: React.FC<{data: ChartDataPoint[], dataKey: string, chartType:
             </BarChart>
         )}
     </ResponsiveContainer>
-)
+);
 
 
 // --- LAYOUT COMPONENTS ---
@@ -324,7 +367,7 @@ const Header: React.FC = () => {
     const handleLogout = async () => {
       try {
         await logout();
-      navigate('/');
+        navigate('/');
       } catch (err) {
         console.error('Error al cerrar sesión:', err);
         // Aún así redirigir al usuario
@@ -519,7 +562,7 @@ const MarketplacePage: React.FC = () => {
         setSearchError(null);
         setFilteredIds([]); // Clear previous results while loading
         setIsLoading(false);
-    }, [searchQuery, services]);
+    }, [searchQuery]);
 
     const displayedServices = filteredIds ? services.filter(s => filteredIds.includes(s.id)) : services;
 
@@ -669,7 +712,7 @@ const LoginPage: React.FC = () => {
         e.preventDefault();
         try {
             await login(formData.email, formData.password);
-        navigate('/dashboard');
+            navigate('/dashboard');
         } catch (err) {
             // El error ya se maneja en el contexto
             console.error('Error de login:', err);
@@ -757,7 +800,9 @@ const RegisterPage: React.FC = () => {
         email: formData.email, 
         password: formData.password 
       });
-    navigate('/dashboard');
+      // Mostrar mensaje de éxito y redirigir
+      alert('¡Registro exitoso! Tu cuenta es de tipo Cliente por defecto. Ahora podés convertirte en proveedor desde tu panel.');
+      navigate('/');
     } catch (err) {
       // El error ya se maneja en el contexto
       console.error('Error de registro:', err);
@@ -847,7 +892,7 @@ const DashboardLayout: React.FC = () => {
     const handleLogout = async () => {
         try {
             await logout();
-        navigate('/');
+            navigate('/');
         } catch (err) {
             console.error('Error al cerrar sesión:', err);
             // Aún así redirigir al usuario
@@ -887,6 +932,17 @@ const DashboardLayout: React.FC = () => {
                             {link.name}
                         </Link>
                     ))}
+                    
+                    {/* Botón Convertirme en Proveedor para clientes */}
+                    {user?.role === 'client' && (
+                        <Link
+                            to="/dashboard/become-provider"
+                            className="flex items-center px-4 py-2.5 text-sm font-medium rounded-lg transition-colors text-primary-600 hover:bg-primary-50 hover:text-primary-700"
+                        >
+                            <SparklesIcon className="w-5 h-5 mr-3" />
+                            Convertirme en Proveedor
+                        </Link>
+                    )}
                 </nav>
                 <div className="px-4 py-4 border-t border-slate-200">
                      <div className="flex items-center px-4 py-3">
@@ -916,36 +972,7 @@ const DashboardLayout: React.FC = () => {
 };
 
 const DashboardPage: React.FC = () => {
-    const { user } = useAuth();
-    
-    if (user?.role === 'admin') {
-      return <AdminDashboardPage />;
-    }
-
-    return (
-        <div>
-            <h1 className="text-3xl font-bold text-slate-800">Dashboard de Proveedor</h1>
-            <p className="text-slate-500 mt-1">Resumen de tu actividad en la plataforma.</p>
-
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mt-8">
-                <DashboardStatCard title="Reservas Pendientes" value="12" icon={<CalendarDaysIcon className="w-6 h-6"/>} change="+2 esta semana" />
-                <DashboardStatCard title="Total Ganado (Mes)" value="Gs. 12.5M" icon={<ChartBarIcon className="w-6 h-6"/>} change="+5.2%" />
-                <DashboardStatCard title="Rating Promedio" value="4.8" icon={<StarIcon className="w-6 h-6"/>} change="+0.1" />
-                <DashboardStatCard title="Servicios Activos" value="5" icon={<CheckCircleIcon className="w-6 h-6"/>} />
-            </div>
-
-            <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 mt-8">
-                <div className="bg-white p-6 rounded-xl shadow-md border border-slate-200/80">
-                    <h2 className="font-semibold text-slate-800">Reservas por Mes</h2>
-                    <CustomChart data={getReservationsChartData()} dataKey="value" chartType="line" />
-                </div>
-                 <div className="bg-white p-6 rounded-xl shadow-md border border-slate-200/80">
-                    <h2 className="font-semibold text-slate-800">Evolución del Rating</h2>
-                    <CustomChart data={getRatingsChartData()} dataKey="value" chartType="line"/>
-                </div>
-            </div>
-        </div>
-    );
+    return <DashboardHome />;
 };
 
 const AdminDashboardPage: React.FC = () => {
@@ -1111,6 +1138,500 @@ const ManageProfilePage: React.FC = () => {
     );
 };
 
+// --- PROVIDER ONBOARDING COMPONENTS ---
+
+// Barra de progreso del onboarding
+const OnboardingProgressBar: React.FC<{ currentStep: number }> = ({ currentStep }) => {
+    const steps = ["Empresa", "Dirección", "Sucursal", "Documentos", "Revisión"];
+    return (
+        <nav aria-label="Progress">
+            <ol role="list" className="space-y-4 md:flex md:space-x-8 md:space-y-0">
+                {steps.map((step, index) => (
+                    <li key={step} className="md:flex-1">
+                        {currentStep > index + 1 ? (
+                            <div className="group flex w-full flex-col border-l-4 border-primary-600 py-2 pl-4 transition-colors md:border-l-0 md:border-t-4 md:pb-0 md:pl-0 md:pt-4">
+                                <span className="text-sm font-medium text-primary-600 transition-colors">{`Paso ${index + 1}`}</span>
+                                <span className="text-sm font-medium">{step}</span>
+                            </div>
+                        ) : currentStep === index + 1 ? (
+                            <div className="flex w-full flex-col border-l-4 border-primary-600 py-2 pl-4 md:border-l-0 md:border-t-4 md:pb-0 md:pl-0 md:pt-4" aria-current="step">
+                                <span className="text-sm font-medium text-primary-600">{`Paso ${index + 1}`}</span>
+                                <span className="text-sm font-medium">{step}</span>
+                            </div>
+                        ) : (
+                            <div className="group flex w-full flex-col border-l-4 border-gray-200 py-2 pl-4 transition-colors md:border-l-0 md:border-t-4 md:pb-0 md:pl-0 md:pt-4">
+                                <span className="text-sm font-medium text-gray-500 transition-colors">{`Paso ${index + 1}`}</span>
+                                <span className="text-sm font-medium">{step}</span>
+                            </div>
+                        )}
+                    </li>
+                ))}
+            </ol>
+        </nav>
+    );
+};
+
+// Componentes de pasos del onboarding
+const Step1_CompanyData: React.FC<{data: ProviderOnboardingData, setData: React.Dispatch<React.SetStateAction<ProviderOnboardingData>>}> = ({data, setData}) => {
+    const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+        setData(prev => ({ ...prev, company: { ...prev.company, [e.target.name]: e.target.value }}));
+    };
+    return <form className="space-y-6">
+        <h2 className="text-xl font-semibold">1. Datos de la Empresa</h2>
+        <div>
+            <label htmlFor="legalName" className="block text-sm font-medium text-slate-700">Razón Social</label>
+            <input type="text" name="legalName" id="legalName" value={data.company.legalName} onChange={handleChange} className="mt-1 block w-full rounded-md border-slate-300 shadow-sm focus:border-primary-500 focus:ring-primary-500" />
+        </div>
+        <div>
+            <label htmlFor="tradeName" className="block text-sm font-medium text-slate-700">Nombre de Fantasía</label>
+            <input type="text" name="tradeName" id="tradeName" value={data.company.tradeName} onChange={handleChange} className="mt-1 block w-full rounded-md border-slate-300 shadow-sm focus:border-primary-500 focus:ring-primary-500" />
+        </div>
+        <div>
+            <label className="block text-sm font-medium text-slate-700">Estado</label>
+            <p className="mt-1 text-sm text-slate-500 bg-slate-100 px-3 py-2 rounded-md">Pendiente de Verificación</p>
+        </div>
+    </form>;
+};
+
+const Step2_Address: React.FC<{data: ProviderOnboardingData, setData: React.Dispatch<React.SetStateAction<ProviderOnboardingData>>}> = ({data, setData}) => {
+    const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+        setData(prev => ({ ...prev, address: { ...prev.address, [e.target.name]: e.target.value }}));
+    };
+    
+    return <div className="space-y-6">
+        <h2 className="text-xl font-semibold">2. Dirección Fiscal</h2>
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+            <div>
+                 <label htmlFor="department" className="block text-sm font-medium text-slate-700">Departamento</label>
+                 <input type="text" name="department" id="department" value={data.address.department} onChange={handleChange} className="mt-1 block w-full rounded-md border-slate-300 shadow-sm focus:border-primary-500 focus:ring-primary-500" placeholder="Central" />
+            </div>
+            <div>
+                 <label htmlFor="city" className="block text-sm font-medium text-slate-700">Ciudad</label>
+                 <input type="text" name="city" id="city" value={data.address.city} onChange={handleChange} className="mt-1 block w-full rounded-md border-slate-300 shadow-sm focus:border-primary-500 focus:ring-primary-500" placeholder="Asunción" />
+            </div>
+        </div>
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+            <div>
+                 <label htmlFor="neighborhood" className="block text-sm font-medium text-slate-700">Barrio</label>
+                 <input type="text" name="neighborhood" id="neighborhood" value={data.address.neighborhood} onChange={handleChange} className="mt-1 block w-full rounded-md border-slate-300 shadow-sm focus:border-primary-500 focus:ring-primary-500" placeholder="Centro" />
+            </div>
+            <div>
+                 <label htmlFor="street" className="block text-sm font-medium text-slate-700">Calle</label>
+                 <input type="text" name="street" id="street" value={data.address.street} onChange={handleChange} className="mt-1 block w-full rounded-md border-slate-300 shadow-sm focus:border-primary-500 focus:ring-primary-500" placeholder="Av. Principal" />
+            </div>
+        </div>
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+            <div>
+                 <label htmlFor="number" className="block text-sm font-medium text-slate-700">Número</label>
+                 <input type="text" name="number" id="number" value={data.address.number} onChange={handleChange} className="mt-1 block w-full rounded-md border-slate-300 shadow-sm focus:border-primary-500 focus:ring-primary-500" placeholder="123" />
+            </div>
+            <div>
+                 <label htmlFor="reference" className="block text-sm font-medium text-slate-700">Referencia</label>
+                 <input type="text" name="reference" id="reference" value={data.address.reference} onChange={handleChange} className="mt-1 block w-full rounded-md border-slate-300 shadow-sm focus:border-primary-500 focus:ring-primary-500" placeholder="Entre calles X e Y" />
+            </div>
+        </div>
+    </div>;
+};
+
+const Step3_Branch: React.FC<{data: ProviderOnboardingData, setData: React.Dispatch<React.SetStateAction<ProviderOnboardingData>>}> = ({data, setData}) => {
+    const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+        setData(prev => ({ ...prev, branch: { ...prev.branch, [e.target.name]: e.target.value }}));
+    };
+    
+    const handleCheckboxChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+        setData(prev => ({ ...prev, branch: { ...prev.branch, useFiscalAddress: e.target.checked }}));
+    };
+    
+    return <form className="space-y-6">
+        <h2 className="text-xl font-semibold">3. Sucursal Principal / Contacto</h2>
+        <div>
+            <label htmlFor="name" className="block text-sm font-medium text-slate-700">Nombre de la Sucursal</label>
+            <input type="text" name="name" id="name" value={data.branch.name} onChange={handleChange} className="mt-1 block w-full rounded-md border-slate-300 shadow-sm focus:border-primary-500 focus:ring-primary-500" placeholder="Casa Matriz" />
+        </div>
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+            <div>
+                <label htmlFor="phone" className="block text-sm font-medium text-slate-700">Teléfono</label>
+                <input type="tel" name="phone" id="phone" value={data.branch.phone} onChange={handleChange} className="mt-1 block w-full rounded-md border-slate-300 shadow-sm focus:border-primary-500 focus:ring-primary-500" />
+            </div>
+            <div>
+                <label htmlFor="email" className="block text-sm font-medium text-slate-700">Email de Contacto</label>
+                <input type="email" name="email" id="email" value={data.branch.email} onChange={handleChange} className="mt-1 block w-full rounded-md border-slate-300 shadow-sm focus:border-primary-500 focus:ring-primary-500" />
+            </div>
+        </div>
+        <div className="flex items-center">
+            <input id="useFiscalAddress" name="useFiscalAddress" type="checkbox" checked={data.branch.useFiscalAddress} onChange={handleCheckboxChange} className="h-4 w-4 rounded border-gray-300 text-primary-600 focus:ring-primary-500"/>
+            <label htmlFor="useFiscalAddress" className="ml-2 block text-sm text-gray-900">Usar dirección fiscal</label>
+        </div>
+    </form>;
+};
+
+const Step4_Documents: React.FC<{data: ProviderOnboardingData, setData: React.Dispatch<React.SetStateAction<ProviderOnboardingData>>}> = ({data, setData}) => {
+    const [uploadErrors, setUploadErrors] = useState<Record<string, string>>({});
+    const [uploadSuccess, setUploadSuccess] = useState<Record<string, boolean>>({});
+    const fileInputRef = useRef<HTMLInputElement>(null);
+    const [currentUploadingDoc, setCurrentUploadingDoc] = useState<string | null>(null);
+
+    // Validaciones de archivo
+    const validateFile = (file: File): string | null => {
+        // Validar extensión
+        const allowedExtensions = ['.pdf', '.jpg', '.jpeg', '.png', '.doc', '.docx'];
+        const fileExtension = '.' + file.name.split('.').pop()?.toLowerCase();
+        
+        if (!allowedExtensions.includes(fileExtension)) {
+            return `Formato no válido. Formatos permitidos: ${allowedExtensions.join(', ')}`;
+        }
+        
+        // Validar tamaño (máximo 10MB)
+        const maxSize = 10 * 1024 * 1024; // 10MB en bytes
+        if (file.size > maxSize) {
+            return 'El archivo es demasiado grande. Máximo 10MB permitido.';
+        }
+        
+        return null;
+    };
+
+    const handleFileSelect = (docId: string) => {
+        setCurrentUploadingDoc(docId);
+        // Limpiar estados previos
+        setUploadErrors(prev => ({ ...prev, [docId]: '' }));
+        setUploadSuccess(prev => ({ ...prev, [docId]: false }));
+        if (fileInputRef.current) {
+            fileInputRef.current.click();
+        }
+    };
+
+    const handleFileChange = async (event: React.ChangeEvent<HTMLInputElement>) => {
+        const file = event.target.files?.[0];
+        if (!file || !currentUploadingDoc) return;
+
+        // Validar archivo
+        const validationError = validateFile(file);
+        if (validationError) {
+            setUploadErrors(prev => ({ ...prev, [currentUploadingDoc]: validationError }));
+            setUploadSuccess(prev => ({ ...prev, [currentUploadingDoc]: false }));
+            setCurrentUploadingDoc(null);
+            return;
+        }
+
+        // Limpiar error previo
+        setUploadErrors(prev => ({ ...prev, [currentUploadingDoc]: '' }));
+
+        try {
+            // Simular subida de archivo (aquí iría la llamada real a la API)
+            await new Promise(resolve => setTimeout(resolve, 1500));
+            
+            // Actualizar estado del documento
+            setData(prev => ({
+                ...prev,
+                documents: {
+                    ...prev.documents,
+                    [currentUploadingDoc]: {
+                        ...prev.documents[currentUploadingDoc],
+                        status: 'uploaded',
+                        file: file
+                    }
+                }
+            }));
+            
+            // Marcar como exitoso
+            setUploadSuccess(prev => ({ ...prev, [currentUploadingDoc]: true }));
+            
+        } catch (error) {
+            setUploadErrors(prev => ({ 
+                ...prev, 
+                [currentUploadingDoc]: 'Error al subir el archivo. Intenta nuevamente.' 
+            }));
+            setUploadSuccess(prev => ({ ...prev, [currentUploadingDoc]: false }));
+        } finally {
+            setCurrentUploadingDoc(null);
+            // Limpiar el input
+            if (event.target) {
+                event.target.value = '';
+            }
+        }
+    };
+
+    const allRequiredUploaded = Object.values(data.documents).filter((d: DocumentUpload) => !d.isOptional).every((d: DocumentUpload) => d.status === 'uploaded');
+    const uploadedCount = Object.values(data.documents).filter((d: DocumentUpload) => d.status === 'uploaded' && !d.isOptional).length;
+    const requiredCount = Object.values(data.documents).filter((d: DocumentUpload) => !d.isOptional).length;
+    const progress = (uploadedCount / requiredCount) * 100;
+
+    const DocStatus: React.FC<{status: DocumentUpload['status']}> = ({status}) => {
+        const styles = {
+            pending: { icon: UploadCloudIcon, text: "Pendiente", color: "text-slate-500 bg-slate-100" },
+            uploaded: { icon: CheckCircleIcon, text: "Cargado", color: "text-green-600 bg-green-100" },
+        }
+        const current = styles[status] || styles['pending'];
+        return <span className={`inline-flex items-center gap-x-1.5 rounded-full px-2 py-1 text-xs font-medium ${current.color}`}>
+            <current.icon className="h-3.5 w-3.5" />
+            {current.text}
+        </span>
+    }
+    
+    return <div className="space-y-6">
+        <h2 className="text-xl font-semibold">4. Documentación</h2>
+        
+        {/* Input file oculto */}
+        <input
+            ref={fileInputRef}
+            type="file"
+            className="hidden"
+            accept=".pdf,.jpg,.jpeg,.png,.doc,.docx"
+            onChange={handleFileChange}
+        />
+        
+        <div className="w-full bg-gray-200 rounded-full h-2.5">
+            <div className="bg-primary-600 h-2.5 rounded-full" style={{width: `${progress}%`}}></div>
+        </div>
+        <p className="text-sm text-slate-600">{`Completaste ${uploadedCount} de ${requiredCount} documentos obligatorios.`}</p>
+        
+        <div className="space-y-4">
+            {Object.values(data.documents).map((doc: DocumentUpload) => (
+                <div key={doc.id} className="p-4 border border-slate-200 rounded-lg">
+                    <div className="flex items-center justify-between mb-2">
+                        <div className="flex items-center gap-3">
+                            <div>
+                                <p className="font-medium text-slate-800">
+                                    {doc.name} {!doc.isOptional && <span className="text-red-500">*</span>}
+                                </p>
+                                <p className="text-sm text-slate-500">{doc.description}</p>
+                            </div>
+                            
+                            {/* Indicadores visuales de estado */}
+                            {uploadSuccess[doc.id] && (
+                                <div className="flex items-center justify-center w-6 h-6 bg-green-100 rounded-full">
+                                    <span className="text-green-600 text-sm font-bold">✅</span>
+                                </div>
+                            )}
+                            {uploadErrors[doc.id] && (
+                                <div className="flex items-center justify-center w-6 h-6 bg-red-100 rounded-full">
+                                    <span className="text-red-600 text-sm font-bold">❌</span>
+                                </div>
+                            )}
+                        </div>
+                        
+                        <div className="flex items-center gap-4">
+                            <DocStatus status={doc.status} />
+                            {doc.status === 'pending' && (
+                                <Button 
+                                    variant="secondary" 
+                                    onClick={() => handleFileSelect(doc.id)}
+                                    disabled={currentUploadingDoc === doc.id}
+                                >
+                                    {currentUploadingDoc === doc.id ? 'Subiendo...' : 'Subir'}
+                                </Button>
+                            )}
+                        </div>
+                    </div>
+                    
+                    {/* Mostrar archivo subido */}
+                    {doc.status === 'uploaded' && doc.file && (
+                        <div className="mt-2 p-2 bg-green-50 border border-green-200 rounded-md">
+                            <div className="flex items-center gap-2">
+                                <CheckCircleIcon className="w-4 h-4 text-green-600" />
+                                <span className="text-sm text-green-800 font-medium">{doc.file.name}</span>
+                                <span className="text-xs text-green-600">
+                                    ({(doc.file.size / 1024 / 1024).toFixed(2)} MB)
+                                </span>
+                            </div>
+                        </div>
+                    )}
+                    
+                    {/* Mostrar error de validación */}
+                    {uploadErrors[doc.id] && (
+                        <div className="mt-2 p-2 bg-red-50 border border-red-200 rounded-md">
+                            <p className="text-sm text-red-800">{uploadErrors[doc.id]}</p>
+                        </div>
+                    )}
+                </div>
+            ))}
+        </div>
+        
+        {!allRequiredUploaded && (
+            <div className="p-4 bg-yellow-50 text-yellow-800 border-l-4 border-yellow-400 rounded-r-lg">
+                <p className="font-semibold">Atención</p>
+                <p className="text-sm">Debés cargar todos los documentos obligatorios para poder enviar tu perfil a verificación.</p>
+            </div>
+        )}
+        
+        <div className="p-4 bg-blue-50 text-blue-800 rounded-lg">
+            <p className="text-sm font-medium">Formatos aceptados:</p>
+            <p className="text-sm">PDF, JPG, JPEG, PNG, DOC, DOCX (máximo 10MB por archivo)</p>
+        </div>
+    </div>;
+};
+
+const Step5_Review: React.FC<{data: ProviderOnboardingData}> = ({data}) => {
+    const allRequiredDocsUploaded = Object.values(data.documents).every((doc: DocumentUpload) => doc.isOptional || doc.status === 'uploaded');
+    return <div className="space-y-8">
+        <h2 className="text-xl font-semibold">5. Revisión y Envío</h2>
+        <div className="p-4 bg-blue-50 text-blue-800 rounded-lg">
+            <p>Revisá que toda la información sea correcta antes de enviar. Una vez enviada, no podrás editarla hasta que finalice el proceso de verificación.</p>
+        </div>
+        {/* Company Info */}
+        <div className="border-b pb-4">
+            <h3 className="font-semibold text-lg">Datos de la Empresa</h3>
+            <p><strong>Razón Social:</strong> {data.company.legalName}</p>
+            <p><strong>Nombre Fantasía:</strong> {data.company.tradeName}</p>
+        </div>
+        {/* Documents Info */}
+        <div className="">
+             <h3 className="font-semibold text-lg">Documentos Cargados</h3>
+             <ul className="list-disc list-inside mt-2">
+                {Object.values(data.documents).filter((d: DocumentUpload) => d.status === 'uploaded').map((d: DocumentUpload) => <li key={d.id} className="text-green-600">{d.name}</li>)}
+             </ul>
+        </div>
+         {!allRequiredDocsUploaded && <div className="p-4 bg-red-50 text-red-800 border-l-4 border-red-400 rounded-r-lg flex items-start gap-3">
+            <ExclamationCircleIcon className="w-6 h-6 flex-shrink-0 mt-0.5"/>
+            <div>
+                <p className="font-semibold">Faltan documentos obligatorios</p>
+                <p className="text-sm">No podés enviar tu solicitud a verificación hasta que todos los documentos marcados con (*) hayan sido cargados en el paso anterior.</p>
+            </div>
+        </div>}
+    </div>;
+};
+
+// Página principal del onboarding
+const ProviderOnboardingPage: React.FC = () => {
+    const [step, setStep] = useState(1);
+    const [data, setData] = useState<ProviderOnboardingData>(initialOnboardingData);
+    const { submitProviderApplication } = useAuth();
+    const navigate = useNavigate();
+
+    const nextStep = () => setStep(s => Math.min(s + 1, 5));
+    const prevStep = () => setStep(s => Math.max(s - 1, 1));
+    
+    const handleSubmit = () => {
+        submitProviderApplication();
+        alert("¡Gracias! Tu perfil de proveedor está en revisión. Te notificaremos en un plazo máximo de 3 días hábiles.");
+        navigate('/dashboard');
+    }
+
+    const renderStep = () => {
+        switch (step) {
+            case 1: return <Step1_CompanyData data={data} setData={setData} />;
+            case 2: return <Step2_Address data={data} setData={setData} />;
+            case 3: return <Step3_Branch data={data} setData={setData} />;
+            case 4: return <Step4_Documents data={data} setData={setData} />;
+            case 5: return <Step5_Review data={data} />;
+            default: return null;
+        }
+    };
+    
+    const allRequiredDocsUploaded = Object.values(data.documents).every((doc: DocumentUpload) => doc.isOptional || doc.status === 'uploaded');
+
+    return (
+        <div className="bg-white p-6 sm:p-8 rounded-xl shadow-md border border-slate-200/80 max-w-4xl mx-auto">
+            <h1 className="text-2xl font-bold text-slate-900">Registro de Proveedor</h1>
+            <p className="text-slate-500 mt-1">Completá los 5 pasos para empezar a ofrecer tus servicios.</p>
+            <div className="my-8">
+                <OnboardingProgressBar currentStep={step} />
+            </div>
+            
+            <div className="mt-8 min-h-[300px]">
+                {renderStep()}
+            </div>
+            
+            <div className="mt-10 pt-6 border-t border-slate-200 flex justify-between items-center">
+                <div>
+                    {step > 1 && <Button variant="secondary" onClick={prevStep}>Anterior</Button>}
+                </div>
+                <div className="space-x-4">
+                    <Button variant="ghost" onClick={() => alert('¡Borrador guardado!')}>Guardar borrador</Button>
+                    {step < 5 && <Button variant="primary" onClick={nextStep}>Siguiente</Button>}
+                    {step === 5 && <Button variant="primary" onClick={handleSubmit} disabled={!allRequiredDocsUploaded}>Enviar a verificación</Button>}
+                </div>
+            </div>
+        </div>
+    );
+};
+
+// Componentes del dashboard para diferentes roles
+const ClientDashboardHome: React.FC = () => {
+    const { providerStatus } = useAuth();
+
+    if (providerStatus === 'pending') {
+        return (
+             <div className="bg-white p-8 rounded-xl shadow-md border border-blue-200 text-center">
+                <ClockIcon className="w-16 h-16 mx-auto text-blue-500" />
+                <h2 className="mt-4 text-2xl font-bold text-slate-800">Tu perfil de proveedor está en revisión</h2>
+                <p className="mt-2 text-slate-600 max-w-xl mx-auto">Hemos recibido tu solicitud. Nuestro equipo la revisará y te notificaremos en un plazo máximo de 3 días hábiles. ¡Gracias por tu paciencia!</p>
+            </div>
+        );
+    }
+    
+    return (
+        <div className="bg-white p-8 rounded-xl shadow-md border border-slate-200">
+            {/* Dashboard vacío para clientes */}
+        </div>
+    )
+};
+
+const ProviderDashboardHome: React.FC = () => {
+    return (
+        <div>
+            <h1 className="text-3xl font-bold text-slate-800">Dashboard de Proveedor</h1>
+            <p className="text-slate-500 mt-1">Resumen de tu actividad en la plataforma.</p>
+
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mt-8">
+                <DashboardStatCard title="Reservas Pendientes" value="12" icon={<CalendarDaysIcon className="w-6 h-6"/>} change="+2 esta semana" />
+                <DashboardStatCard title="Total Ganado (Mes)" value="Gs. 12.5M" icon={<ChartBarIcon className="w-6 h-6"/>} change="+5.2%" />
+                <DashboardStatCard title="Rating Promedio" value="4.8" icon={<StarIcon className="w-6 h-6"/>} change="+0.1" />
+                <DashboardStatCard title="Servicios Activos" value="5" icon={<CheckCircleIcon className="w-6 h-6"/>} />
+            </div>
+
+            <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 mt-8">
+                <div className="bg-white p-6 rounded-xl shadow-md border border-slate-200/80">
+                    <h2 className="font-semibold text-slate-800">Reservas por Mes</h2>
+                    <CustomChart data={getReservationsChartData()} dataKey="value" chartType="line" />
+                </div>
+                 <div className="bg-white p-6 rounded-xl shadow-md border border-slate-200/80">
+                    <h2 className="font-semibold text-slate-800">Evolución del Rating</h2>
+                    <CustomChart data={getRatingsChartData()} dataKey="value" chartType="line"/>
+                </div>
+            </div>
+        </div>
+    );
+};
+
+const AdminDashboardHome: React.FC = () => {
+    return (
+        <div>
+            <h1 className="text-3xl font-bold text-slate-800">Panel de Administrador</h1>
+            <p className="text-slate-500 mt-1">Visión general del estado de la plataforma.</p>
+             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mt-8">
+                <DashboardStatCard title="Usuarios Totales" value="300" icon={<UsersIcon className="w-6 h-6"/>} change="+50 este mes" />
+                <DashboardStatCard title="Publicaciones Totales" value="350" icon={<BuildingStorefrontIcon className="w-6 h-6"/>} change="+30 este mes" />
+                <DashboardStatCard title="Ingresos Plataforma (Mes)" value="Gs. 2.5M" icon={<ChartBarIcon className="w-6 h-6"/>} change="+8.1%" />
+                <DashboardStatCard title="Tasa de Verificación" value="85%" icon={<CheckCircleIcon className="w-6 h-6"/>} />
+            </div>
+
+            <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 mt-8">
+                <div className="bg-white p-6 rounded-xl shadow-md border border-slate-200/80">
+                    <h2 className="font-semibold text-slate-800">Crecimiento de Usuarios</h2>
+                    <CustomChart data={getAdminUsersChartData()} dataKey="value" chartType="bar" />
+                </div>
+                 <div className="bg-white p-6 rounded-xl shadow-md border border-slate-200/80">
+                    <h2 className="font-semibold text-slate-800">Crecimiento de Publicaciones</h2>
+                    <CustomChart data={getAdminPublicationsChartData()} dataKey="value" chartType="bar"/>
+                </div>
+            </div>
+        </div>
+    );
+};
+
+// Función para determinar qué dashboard mostrar
+const DashboardHome: React.FC = () => {
+    const { user, providerStatus } = useAuth();
+    if (user?.role === 'admin') {
+        return <AdminDashboardHome />;
+    }
+    if (user?.role === 'provider' || (user?.role === 'client' && providerStatus === 'approved')) {
+         return <ProviderDashboardHome />;
+    }
+    return <ClientDashboardHome />;
+};
+
 const ProtectedRoute: React.FC<{ children: React.ReactNode; }> = ({ children }) => {
     const { user } = useAuth();
     if (!user) {
@@ -1137,6 +1658,7 @@ const App: React.FC = () => {
                        <Route index element={<DashboardPage />} />
                        <Route path="reservations" element={<ReservationsPage />} />
                        <Route path="profile" element={<ManageProfilePage />} />
+                       <Route path="become-provider" element={<ProviderOnboardingPage />} />
                     </Route>
                     <Route path="*" element={<Navigate to="/" />} />
                 </Routes>

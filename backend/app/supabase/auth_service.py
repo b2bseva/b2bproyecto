@@ -3,7 +3,10 @@
 from supabase import Client, create_client
 from sqlalchemy import create_engine
 from app.core.config import SUPABASE_URL, SUPABASE_ANON_KEY, SUPABASE_SERVICE_ROLE_KEY, DATABASE_URL
+from supabase.lib.client_options import ClientOptions
 
+
+#options = ClientOptions(use_ssl=False)
 
 # Supabase Auth client
 #supabase_auth: Client = create_client(SUPABASE_URL, SUPABASE_ANON_KEY, SUPABASE_SERVICE_ROLE_KEY)

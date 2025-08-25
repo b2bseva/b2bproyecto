@@ -1,5 +1,6 @@
 #autenticacion supabase
 # app/api/v1/routers/auth.py
+import uuid
 from sqlalchemy import UUID, select
 from app.schemas.auth import SignInIn, SignUpIn, SignUpSuccess, TokenOut, RefreshTokenIn, EmailOnlyIn
 from fastapi import APIRouter, Depends, HTTPException, status
@@ -12,9 +13,9 @@ from app.schemas.auth_user import SupabaseUser
 from app.utils.errores import handle_supabase_auth_error  # Importa la función para manejar errores de Supabase
 from supabase import AuthApiError  # Importa la excepción de error de Supabase
 from sqlalchemy.ext.asyncio import AsyncSession 
-from app.models.usuario_rol import UsuarioRolModel  
-from app.models.rol import RolModel  
-from app.models.perfil import UserModel  # Importa tu modelo actualizado
+from app.models2.usuario_rol import UsuarioRolModel  
+from app.models2.rol import RolModel  
+from app.models2.perfil import UserModel  # Importa tu modelo actualizado
 import logging
 from sqlalchemy.exc import SQLAlchemyError
 from sqlalchemy.orm import joinedload
@@ -313,8 +314,9 @@ async def logout(current_user: SupabaseUser = Depends(get_current_user)):
         # Intenta cerrar la sesión del usuario actual.
         # Supabase suele manejar esto invalidando el refresh token.
         # El resultado de sign_out es a menudo None si es exitoso y no hay errores.
-        supabase_auth.sign_out()
-        
+        # supabase_auth.sign_out()
+        supabase_auth.auth.sign_out()
+
         # Si la operación fue exitosa y no lanzó una excepción,
         # simplemente devuelve None para un 204 No Content.
         return None
@@ -364,10 +366,23 @@ async def read_profile(current_user: SupabaseUser = Depends(get_current_user),
 
     # 1. Recuperar el perfil del usuario de la base de datos
     # Se utiliza joinedload para cargar los roles de forma eficiente en una sola consulta.
-    result_profile = await db.execute(
+    '''result_profile = await db.execute(
         select(UserModel)
         .options(joinedload(UserModel.roles))
         .where(UserModel.id == UUID(current_user.id))
+    )'''
+
+     # 1. Convertir el id de string a UUID de Python
+    user_uuid = uuid.UUID(current_user.id)
+
+    # Se utiliza joinedload para cargar los roles de forma eficiente en una sola consulta,
+    # incluyendo la relación anidada `rol` para evitar lazy-loading en el contexto async.
+    result_profile = await db.execute(
+        select(UserModel)
+        .options(
+            joinedload(UserModel.roles).joinedload(UsuarioRolModel.rol)
+        )
+        .where(UserModel.id == user_uuid)
     )
 
     user_profile = result_profile.scalars().first()
