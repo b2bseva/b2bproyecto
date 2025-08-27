@@ -37,7 +37,7 @@ class PerfilEmpresa(Base):
     fecha_fin: Mapped[Optional[DateTime]] = Column(DateTime(True), nullable=True)
 
     # Nota: id_direccion es una clave foranea, deberias definirla
-    id_direccion: Mapped[UUID] = Column(PG_UUID(as_uuid=True), ForeignKey("direccion.id_direccion"), nullable=True)
+    id_direccion: Mapped[int] = Column(BigInteger, ForeignKey('direccion.id_direccion', ondelete='SET NULL'), nullable=True)
 
     # Relaciones
     direccion: Mapped["Direccion"] = relationship(back_populates="perfil_empresa")

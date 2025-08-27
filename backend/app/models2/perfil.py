@@ -17,4 +17,11 @@ class UserModel(Base):
 
     # Relación con la tabla de unión UsuarioRol (relación muchos a muchos)
     roles: Mapped[List["UsuarioRolModel"]] = relationship(back_populates="usuario")
+    # Relación con el perfil de empresa (relacion uno a muchos, un usuario puede tener un perfil de empresa)
+    perfil_empresa: Mapped[List["PerfilEmpresa"]] = relationship(
+        "PerfilEmpresa", 
+        back_populates="user",
+        primaryjoin="foreign(PerfilEmpresa.user_id) == UserModel.id"
+    )
+    
 

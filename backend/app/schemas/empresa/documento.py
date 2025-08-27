@@ -9,11 +9,8 @@ class DocumentoIn(BaseModel):
     Este modelo se utiliza para validar la información cuando un proveedor sube 
     un documento para una solicitud.
     '''
-
     id_tip_documento: int
-    id_verificacion: int
-    estado_revision: str = "pendiente"
-    observacion: Optional[str] = None
+    archivo_url: str  # Aquí se espera la URL o el path del archivo en iDrive
 
     
 class DocumentoOut(BaseModel):

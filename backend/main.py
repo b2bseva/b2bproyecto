@@ -27,6 +27,8 @@ app.add_middleware(
 
 # Incluir routers
 app.include_router(auth.router, prefix="/api/v1")
+app.include_router(providers.router, prefix="/api/v1")
+app.include_router(locations.router, prefix="/api/v1") 
 
 # endpoint (una ruta) para la URL raíz ("/")
 @app.get("/")

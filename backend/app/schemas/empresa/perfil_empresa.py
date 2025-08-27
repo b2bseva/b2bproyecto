@@ -4,6 +4,7 @@ from pydantic import BaseModel
 from uuid import UUID
 from datetime import datetime
 from typing import Optional, List
+from app.schemas.empresa.documento import DocumentoIn
 
 # Importar schemas de tablas relacionadas
 # from .direccion import DireccionOut
@@ -13,12 +14,14 @@ from typing import Optional, List
 # from .verificacion_solicitud import VerificacionSolicitudOut
 
 class PerfilEmpresaIn(BaseModel):
-    razon_social: str
+    #razon_social: este campo ya no se espera del frontend
     nombre_fantasia: str
-    
-    # Estos campos se usarán para crear un perfil
-    id_direccion: UUID 
-    id_user: UUID 
+    id_direccion: str
+
+class solicitudCompletaIn(BaseModel):
+    perfil_empresa : PerfilEmpresaIn
+    comentario_solicitud : str
+    documentos : List[DocumentoIn]
 
 class PerfilEmpresaOut(BaseModel):
     id_perfil: UUID
