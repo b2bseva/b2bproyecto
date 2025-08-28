@@ -8,8 +8,13 @@ from sqlalchemy.orm import relationship, Mapped
 from sqlalchemy.dialects.postgresql import UUID as PG_UUID
 from app.supabase.db.db_supabase import Base # Importación de la base declarativa
 from typing import TYPE_CHECKING
-from app.models2.empresa.perfil_empresa import PerfilEmpresa
-from app.models2.empresa.direccion import Direccion
+#from app.models.empresa.perfil_empresa import PerfilEmpresa
+#from app.models.empresa.direccion import Direccion
+from typing import TYPE_CHECKING
+
+if TYPE_CHECKING:
+    from app.models.empresa.perfil_empresa import PerfilEmpresa
+    from app.models.empresa.direccion import Direccion
 
 class SucursalEmpresa(Base):
     """

@@ -1,6 +1,8 @@
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from app.api.v1.routers import auth
+from app.api.v1.routers.locations import locations
+from app.api.v1.routers.providers import providers
 
 # Instancia de la aplicación de FastAPI
 app = FastAPI(

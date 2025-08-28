@@ -13,8 +13,8 @@ from typing import TYPE_CHECKING
 #con esto evitamos problemas de importación circular
 #circulares decimos por que auth.py importa usuario_rol.py, y usuario_rol.py importa auth.py
 if TYPE_CHECKING:
-    from app.models2.rol import RolModel
-    from app.models2.perfil import UserModel
+    from app.models.rol import RolModel
+    from app.models.perfil import UserModel
 
 
 class UsuarioRolModel(Base):

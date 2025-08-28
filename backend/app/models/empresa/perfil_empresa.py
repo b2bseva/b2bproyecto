@@ -6,15 +6,16 @@ from sqlalchemy import BIGINT, BigInteger, Column, String, Boolean, DateTime, te
 from sqlalchemy.orm import relationship, Mapped
 from sqlalchemy.dialects.postgresql import UUID as PG_UUID
 from app.supabase.db.db_supabase import Base 
-from app.models2.perfil import UserModel
-from app.models2.empresa.sucursal_empresa import SucursalEmpresa
-from app.models2.empresa.direccion import Direccion
+#from app.models.perfil import UserModel
+from app.models.empresa.sucursal_empresa import SucursalEmpresa
+from app.models.empresa.direccion import Direccion
+from app.models.empresa.verificacion_solicitud import VerificacionSolicitud
 from typing import TYPE_CHECKING
 
 
 
 if TYPE_CHECKING:
-    from app.models2.perfil import UserModel
+    from app.models.perfil import UserModel
 
 
 class PerfilEmpresa(Base):
@@ -42,7 +43,7 @@ class PerfilEmpresa(Base):
     # Relaciones
     direccion: Mapped["Direccion"] = relationship(back_populates="perfil_empresa")
     user: Mapped["UserModel"] = relationship(back_populates="perfil_empresa")
-    plan_suscripcion: Mapped[List["PlanSuscripcion"]] = relationship(back_populates="perfil_empresa")
-    servicio: Mapped[List["Servicio"]] = relationship(back_populates="perfil_empresa")
-    sucursal_empresa: Mapped[List["SucursalEmpresa"]] = relationship(back_populates="perfil_empresa")
+    #plan_suscripcion: Mapped[List["PlanSuscripcion"]] = relationship(back_populates="perfil_empresa")
+    #servicio: Mapped[List["Servicio"]] = relationship(back_populates="perfil_empresa")
+    #sucursal_empresa: Mapped[List["SucursalEmpresa"]] = relationship(back_populates="perfil_empresa")
     verificacion_solicitud: Mapped[List["VerificacionSolicitud"]] = relationship(back_populates="perfil_empresa")

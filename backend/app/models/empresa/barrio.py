@@ -5,7 +5,7 @@ from datetime import datetime
 from sqlalchemy import Column, String, BigInteger, DateTime, text, ForeignKey
 from sqlalchemy.orm import relationship, Mapped
 from app.supabase.db.db_supabase import Base # Importación de la base declarativa
-from app.models.ciudad import Ciudad # Asegúrate de que esta importación sea correcta
+from app.models.empresa.ciudad import Ciudad # Asegúrate de que esta importación sea correcta
 
 class Barrio(Base):
     """

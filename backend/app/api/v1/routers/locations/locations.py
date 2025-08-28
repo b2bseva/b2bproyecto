@@ -5,12 +5,12 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.future import select
 from typing import List
 from app.api.v1.dependencies.database_supabase import get_async_db
-from app.models.departamento import Departamento
-from app.models.ciudad import Ciudad
-from app.models.barrio import Barrio
-from app.schemas.departamento import DepartamentoOut
-from app.schemas.ciudad import CiudadOut
-from app.schemas.barrio import BarrioOut
+from app.models.empresa.departamento import Departamento
+from app.models.empresa.ciudad import Ciudad
+from app.models.empresa.barrio import Barrio
+from app.schemas.empresa.departamento import DepartamentoOut
+from app.schemas.empresa.ciudad import CiudadOut
+from app.schemas.empresa.barrio import BarrioOut
 
 router = APIRouter(prefix="/locations", tags=["locations"])
 

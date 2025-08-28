@@ -13,9 +13,9 @@ from app.schemas.auth_user import SupabaseUser
 from app.utils.errores import handle_supabase_auth_error  # Importa la función para manejar errores de Supabase
 from supabase import AuthApiError  # Importa la excepción de error de Supabase
 from sqlalchemy.ext.asyncio import AsyncSession 
-from app.models2.usuario_rol import UsuarioRolModel  
-from app.models2.rol import RolModel  
-from app.models2.perfil import UserModel  # Importa tu modelo actualizado
+from app.models.usuario_rol import UsuarioRolModel  
+from app.models.rol import RolModel  
+from app.models.perfil import UserModel  # Importa tu modelo actualizado
 import logging
 from sqlalchemy.exc import SQLAlchemyError
 from sqlalchemy.orm import joinedload

@@ -5,8 +5,12 @@ from datetime import datetime
 from sqlalchemy import Column, String, BigInteger, DateTime, text, ForeignKey
 from sqlalchemy.orm import relationship, Mapped
 from app.supabase.db.db_supabase import Base # Importación de la base declarativa
-from app.models2.empresa.perfil_empresa import PerfilEmpresa
-from app.models2.empresa.documento import Documento
+#from app.models.empresa.perfil_empresa import PerfilEmpresa
+from app.models.empresa.documento import Documento
+from typing import TYPE_CHECKING
+
+if TYPE_CHECKING:
+    from app.models.empresa.documento import Documento
 
 class VerificacionSolicitud(Base):
     """

@@ -6,11 +6,16 @@ from uuid import UUID
 from sqlalchemy import BIGINT, Column, String, ForeignKey, text, DateTime
 from sqlalchemy.orm import relationship, Mapped
 from sqlalchemy.dialects.postgresql import UUID as PG_UUID
+from app.models.empresa.barrio import Barrio
 from geoalchemy2 import Geometry
 from app.supabase.db.db_supabase import Base 
 from typing import TYPE_CHECKING
-from app.models2.empresa.perfil_empresa import PerfilEmpresa
-from app.models2.empresa.sucursal_empresa import SucursalEmpresa
+#from app.models.empresa.perfil_empresa import PerfilEmpresa
+#from app.models.empresa.sucursal_empresa import SucursalEmpresa
+
+if TYPE_CHECKING:
+    from app.models.empresa.perfil_empresa import PerfilEmpresa
+    from app.models.empresa.sucursal_empresa import SucursalEmpresa
 
 class Direccion(Base):
     """
@@ -28,7 +33,7 @@ class Direccion(Base):
     referencia: Mapped[str] = Column(String(150), nullable=True) # Hacemos referencia opcional
     
     # La columna de coordenadas ya está correctamente definida
-    coordenadas: Mapped[str] = mapped_column(Geometry("POINT", srid=4326), nullable=False)
+    #coordenadas: Mapped[str] = mapped_column(Geometry("POINT", srid=4326), nullable=False)
     
     # El id_barrio también debe ser UUID para la consistencia
     id_barrio: Mapped[UUID] = Column(PG_UUID(as_uuid=True), ForeignKey('barrio.id_barrio', ondelete='CASCADE'), nullable=False)

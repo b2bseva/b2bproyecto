@@ -1,4 +1,8 @@
+import uuid
 from app.idrive import idrive_s3_client
+from app.core.config import IDRIVE_BUCKET_NAME, IDRIVE_ENDPOINT_URL
+from botocore.exceptions import NoCredentialsError, ClientError
+from fastapi import UploadFile
 
 
 async def upload_file_to_idrive(file: UploadFile, user_id: str, file_type: str) -> str:
@@ -29,8 +33,8 @@ async def upload_file_to_idrive(file: UploadFile, user_id: str, file_type: str) 
         return idrive_file_url
     
     except NoCredentialsError:
-        raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail="Credenciales de iDrive no encontradas.")
+        raise ValueError("Credenciales de iDrive no encontradas.")
     except ClientError as e:
-        raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail=f"Error al subir el archivo a iDrive: {str(e)}")
+        raise ValueError(f"Error al subir el archivo a iDrive: {str(e)}")
     except Exception as e:
-        raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail=f"Error inesperado: {str(e)}")
+        raise ValueError(f"Error inesperado: {str(e)}")
