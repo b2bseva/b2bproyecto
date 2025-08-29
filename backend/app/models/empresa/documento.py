@@ -6,7 +6,7 @@ from sqlalchemy import Column, String, BigInteger, DateTime, text, ForeignKey
 from sqlalchemy.orm import relationship, Mapped
 from app.supabase.db.db_supabase import Base
 #from app.models.empresa.verificacion_solicitud import VerificacionSolicitud
-#from app.models.tipo_documento import TipoDocumento
+#from app.models.empresa.tipo_documento import TipoDocumento
 from typing import TYPE_CHECKING
 
 if TYPE_CHECKING:

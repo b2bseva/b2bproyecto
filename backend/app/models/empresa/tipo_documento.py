@@ -5,7 +5,11 @@ from datetime import datetime
 from sqlalchemy import Column, String, BigInteger, Boolean, DateTime, text
 from sqlalchemy.orm import relationship, Mapped
 from app.supabase.db.db_supabase import Base 
-from app.models.empresa.documento import Documento
+
+from typing import TYPE_CHECKING
+
+if TYPE_CHECKING:
+    from app.models.empresa.documento import Documento
 
 class TipoDocumento(Base):
     """

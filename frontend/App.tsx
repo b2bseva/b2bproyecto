@@ -5,6 +5,7 @@ import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContai
 import { Service, Category, Faq, User, UserRole, ChartDataPoint, ProviderOnboardingData, DocumentUpload } from './types';
 import { MOCK_SERVICES, MOCK_CATEGORIES, MOCK_FAQS, getReservationsChartData, getRatingsChartData, getAdminUsersChartData, getAdminPublicationsChartData, authAPI } from './services/api';
 import { StarIcon, CheckCircleIcon, ChevronDownIcon, MagnifyingGlassIcon, SparklesIcon, HomeIcon, BuildingStorefrontIcon, CalendarDaysIcon, UserCircleIcon, ArrowRightOnRectangleIcon, EllipsisVerticalIcon, ChartBarIcon, PaintBrushIcon, CodeBracketIcon, PresentationChartLineIcon, BriefcaseIcon, PlusCircleIcon, UsersIcon, EyeIcon, EyeSlashIcon, ClockIcon, UploadCloudIcon, MapPinIcon, ExclamationCircleIcon } from './components/icons';
+import { AddressSelector } from './components/AddressSelector';
 
 // Datos iniciales para el onboarding de proveedor
 const initialOnboardingData: ProviderOnboardingData = {
@@ -712,7 +713,7 @@ const LoginPage: React.FC = () => {
         e.preventDefault();
         try {
             await login(formData.email, formData.password);
-            navigate('/dashboard');
+            navigate('/');
         } catch (err) {
             // El error ya se maneja en el contexto
             console.error('Error de login:', err);
@@ -1197,38 +1198,49 @@ const Step2_Address: React.FC<{data: ProviderOnboardingData, setData: React.Disp
     const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
         setData(prev => ({ ...prev, address: { ...prev.address, [e.target.name]: e.target.value }}));
     };
+
+    const handleAddressChange = (address: {
+        departamento: any;
+        ciudad: any;
+        barrio: any;
+    }) => {
+        setData(prev => ({
+            ...prev,
+            address: {
+                ...prev.address,
+                department: address.departamento?.nombre || '',
+                city: address.ciudad?.nombre || '',
+                neighborhood: address.barrio?.nombre || ''
+            }
+        }));
+    };
     
     return <div className="space-y-6">
         <h2 className="text-xl font-semibold">2. Dirección Fiscal</h2>
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-            <div>
-                 <label htmlFor="department" className="block text-sm font-medium text-slate-700">Departamento</label>
-                 <input type="text" name="department" id="department" value={data.address.department} onChange={handleChange} className="mt-1 block w-full rounded-md border-slate-300 shadow-sm focus:border-primary-500 focus:ring-primary-500" placeholder="Central" />
-            </div>
-            <div>
-                 <label htmlFor="city" className="block text-sm font-medium text-slate-700">Ciudad</label>
-                 <input type="text" name="city" id="city" value={data.address.city} onChange={handleChange} className="mt-1 block w-full rounded-md border-slate-300 shadow-sm focus:border-primary-500 focus:ring-primary-500" placeholder="Asunción" />
-            </div>
+        
+        {/* Selector de ubicaciones con búsqueda en tiempo real */}
+        <div className="bg-gray-50 p-4 rounded-lg border">
+            <h3 className="text-lg font-medium text-gray-900 mb-4">Ubicación</h3>
+            <AddressSelector
+                onAddressChange={handleAddressChange}
+                className="mb-4"
+            />
         </div>
+
+        {/* Campos adicionales de dirección */}
         <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-            <div>
-                 <label htmlFor="neighborhood" className="block text-sm font-medium text-slate-700">Barrio</label>
-                 <input type="text" name="neighborhood" id="neighborhood" value={data.address.neighborhood} onChange={handleChange} className="mt-1 block w-full rounded-md border-slate-300 shadow-sm focus:border-primary-500 focus:ring-primary-500" placeholder="Centro" />
-            </div>
             <div>
                  <label htmlFor="street" className="block text-sm font-medium text-slate-700">Calle</label>
                  <input type="text" name="street" id="street" value={data.address.street} onChange={handleChange} className="mt-1 block w-full rounded-md border-slate-300 shadow-sm focus:border-primary-500 focus:ring-primary-500" placeholder="Av. Principal" />
             </div>
-        </div>
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
             <div>
                  <label htmlFor="number" className="block text-sm font-medium text-slate-700">Número</label>
                  <input type="text" name="number" id="number" value={data.address.number} onChange={handleChange} className="mt-1 block w-full rounded-md border-slate-300 shadow-sm focus:border-primary-500 focus:ring-primary-500" placeholder="123" />
             </div>
-            <div>
-                 <label htmlFor="reference" className="block text-sm font-medium text-slate-700">Referencia</label>
-                 <input type="text" name="reference" id="reference" value={data.address.reference} onChange={handleChange} className="mt-1 block w-full rounded-md border-slate-300 shadow-sm focus:border-primary-500 focus:ring-primary-500" placeholder="Entre calles X e Y" />
-            </div>
+        </div>
+        <div>
+            <label htmlFor="reference" className="block text-sm font-medium text-slate-700">Referencia</label>
+            <input type="text" name="reference" id="reference" value={data.address.reference} onChange={handleChange} className="mt-1 block w-full rounded-md border-slate-300 shadow-sm focus:border-primary-500 focus:ring-primary-500" placeholder="Entre calles X e Y" />
         </div>
     </div>;
 };
@@ -1548,7 +1560,7 @@ const ProviderOnboardingPage: React.FC = () => {
 
 // Componentes del dashboard para diferentes roles
 const ClientDashboardHome: React.FC = () => {
-    const { providerStatus } = useAuth();
+    const { providerStatus, user } = useAuth();
 
     if (providerStatus === 'pending') {
         return (
@@ -1562,16 +1574,23 @@ const ClientDashboardHome: React.FC = () => {
     
     return (
         <div className="bg-white p-8 rounded-xl shadow-md border border-slate-200">
+            <div className="text-center mb-8">
+                <h1 className="text-3xl font-bold text-slate-800 mb-2">
+                    ¡Bienvenido/a {user?.name || 'Usuario'}!
+                </h1>
+                <p className="text-slate-600">Gracias por usar nuestra plataforma de servicios empresariales.</p>
+            </div>
             {/* Dashboard vacío para clientes */}
         </div>
     )
 };
 
 const ProviderDashboardHome: React.FC = () => {
+    const { user } = useAuth();
     return (
         <div>
-            <h1 className="text-3xl font-bold text-slate-800">Dashboard de Proveedor</h1>
-            <p className="text-slate-500 mt-1">Resumen de tu actividad en la plataforma.</p>
+            <h1 className="text-3xl font-bold text-slate-800">¡Bienvenido/a {user?.name || 'Usuario'}!</h1>
+            <p className="text-slate-500 mt-1">Dashboard de Proveedor - Resumen de tu actividad en la plataforma.</p>
 
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mt-8">
                 <DashboardStatCard title="Reservas Pendientes" value="12" icon={<CalendarDaysIcon className="w-6 h-6"/>} change="+2 esta semana" />
@@ -1595,10 +1614,11 @@ const ProviderDashboardHome: React.FC = () => {
 };
 
 const AdminDashboardHome: React.FC = () => {
+    const { user } = useAuth();
     return (
         <div>
-            <h1 className="text-3xl font-bold text-slate-800">Panel de Administrador</h1>
-            <p className="text-slate-500 mt-1">Visión general del estado de la plataforma.</p>
+            <h1 className="text-3xl font-bold text-slate-800">¡Bienvenido/a {user?.name || 'Usuario'}!</h1>
+            <p className="text-slate-500 mt-1">Panel de Administrador - Visión general del estado de la plataforma.</p>
              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mt-8">
                 <DashboardStatCard title="Usuarios Totales" value="300" icon={<UsersIcon className="w-6 h-6"/>} change="+50 este mes" />
                 <DashboardStatCard title="Publicaciones Totales" value="350" icon={<BuildingStorefrontIcon className="w-6 h-6"/>} change="+30 este mes" />

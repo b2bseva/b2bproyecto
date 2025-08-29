@@ -12,7 +12,7 @@ from app.models.empresa.direccion import Direccion
 from app.models.perfil import UserModel 
 from app.schemas.empresa.perfil_empresa import PerfilEmpresaIn
 from app.schemas.auth_user import SupabaseUser
-from app.idrive.idrive_service import upload_file_to_idrive 
+from app.api.v1.dependencies.idrive import upload_file_to_idrive
 from typing import Optional, List
 import uuid
 

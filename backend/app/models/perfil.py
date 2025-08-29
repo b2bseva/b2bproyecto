@@ -1,5 +1,5 @@
 # app/models/perfil.py
-from typing import List, Optional
+'''from typing import List, Optional
 from uuid import UUID
 from sqlalchemy import Column, String
 from sqlalchemy.orm import relationship, Mapped
@@ -31,4 +31,42 @@ class UserModel(Base):
         primaryjoin="foreign(PerfilEmpresa.user_id) == UserModel.id"
     )
     
+'''
+
+# app/models/perfil.py
+from typing import List
+from uuid import UUID
+from sqlalchemy import String, Column
+from sqlalchemy.orm import relationship, Mapped
+from sqlalchemy.dialects.postgresql import UUID as PG_UUID
+from app.supabase.db.db_supabase import Base
+from typing import TYPE_CHECKING
+
+if TYPE_CHECKING:
+    from app.models.empresa.perfil_empresa import PerfilEmpresa
+    from app.models.usuario_rol import UsuarioRolModel
+
+class UserModel(Base):
+    __tablename__ = "users"
+    #__table_args__ = {"schema": "auth"}  # Apunta al esquema auth (Supabase Auth)
+
+    # Clave primaria coincidente con auth.users.id
+    id: Mapped[UUID] = Column(PG_UUID(as_uuid=True), primary_key=True)
+    nombre_persona: Mapped[str] = Column(String(100), nullable=False)
+    nombre_empresa: Mapped[str] = Column(String(100), nullable=True)
+
+    # Relaciones
+    roles: Mapped[List["UsuarioRolModel"]] = relationship(
+        "UsuarioRolModel", back_populates="usuario",
+        primaryjoin="UsuarioRolModel.id_usuario == UserModel.id"
+    )
+
+    '''perfil_empresa: Mapped[List["PerfilEmpresa"]] = relationship(
+        "PerfilEmpresa", back_populates="user"
+    )'''
+    perfil_empresa: Mapped[List["PerfilEmpresa"]] = relationship(
+        "PerfilEmpresa", 
+        back_populates="user",
+        primaryjoin="PerfilEmpresa.user_id == UserModel.id"
+    )
 

@@ -1,5 +1,5 @@
 import uuid
-from app.idrive import idrive_s3_client
+from app.idrive.idrive_service import idrive_s3_client
 from app.core.config import IDRIVE_BUCKET_NAME, IDRIVE_ENDPOINT_URL
 from botocore.exceptions import NoCredentialsError, ClientError
 from fastapi import UploadFile
