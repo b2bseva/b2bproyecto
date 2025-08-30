@@ -4,6 +4,8 @@ from fastapi import Depends, HTTPException, status
 from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
 from supabase import AuthApiError
 #from app.core.supabase import supabase  # Asegúrate de que esta importación sea correcta
+from app.api.v1.routers.users.auth_user2.auth import read_profile
+from app.schemas.user import UserProfileAndRolesOut
 from app.supabase.auth_service import supabase_auth  # Importa el cliente Supabase inicializado
 from app.schemas.auth_user import SupabaseUser  # o desde schemas si lo moviste
 from gotrue.types import User  # Importa el tipo User de gotrue import UserResponse  # Importa UserResponse para manejar la respuesta de get_user
@@ -11,7 +13,7 @@ from gotrue.types import User  # Importa el tipo User de gotrue import UserRespo
 security = HTTPBearer()
 
 # Dependencia para validar el token JWT y obtener los datos del usuario autenticado
-def get_current_user(
+async def get_current_user(
     credentials: HTTPAuthorizationCredentials = Depends(security)
 ) -> SupabaseUser:
     """
@@ -69,3 +71,17 @@ def get_current_user(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail=f"Error inesperado al validar el token: {str(e)}"
         )
+    
+
+async def get_admin_user(
+    current_user_profile: UserProfileAndRolesOut = Depends(read_profile)
+) -> SupabaseUser:
+    """
+    Dependencia que asegura que el usuario autenticado es un administrador.
+    """
+    if "admin" not in current_user_profile.roles:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="No tienes permisos de administrador"
+        )
+    return current_user_profile
