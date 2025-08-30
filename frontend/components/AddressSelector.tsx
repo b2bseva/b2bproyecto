@@ -97,43 +97,78 @@ export const AddressSelector: React.FC<AddressSelectorProps> = ({
 
     // Manejar cambio de departamento
     const handleDepartamentoChange = (departamento: Departamento | null) => {
+        console.log('🔄 Cambiando departamento a:', departamento?.nombre);
+        
         setSelectedDepartamento(departamento);
-        setSelectedCiudad(null);
-        setSelectedBarrio(null);
-        setCiudades([]);
-        setBarrios([]);
         
         if (departamento) {
+            // Cargar ciudades para el nuevo departamento
             loadCiudades(departamento.id_departamento);
+            
+            // Limpiar ciudad y barrio solo si el departamento cambió
+            if (selectedCiudad && selectedCiudad.id_departamento !== departamento.id_departamento) {
+                console.log('🧹 Limpiando ciudad y barrio porque cambió departamento');
+                setSelectedCiudad(null);
+                setSelectedBarrio(null);
+                setBarrios([]);
+            }
+        } else {
+            // Si se deselecciona el departamento, limpiar todo
+            console.log('🧹 Limpiando todo porque se deseleccionó departamento');
+            setSelectedCiudad(null);
+            setSelectedBarrio(null);
+            setCiudades([]);
+            setBarrios([]);
         }
         
-        notifyAddressChange(departamento, null, null);
+        // Notificar el cambio
+        onAddressChange({
+            departamento,
+            ciudad: selectedCiudad,
+            barrio: selectedBarrio
+        });
     };
 
     // Manejar cambio de ciudad
     const handleCiudadChange = (ciudad: Ciudad | null) => {
+        console.log('🔄 Cambiando ciudad a:', ciudad?.nombre);
+        
         setSelectedCiudad(ciudad);
-        setSelectedBarrio(null);
-        setBarrios([]);
         
         if (ciudad) {
+            // Cargar barrios para la nueva ciudad
             loadBarrios(ciudad.id_ciudad);
+            
+            // Limpiar barrio solo si la ciudad cambió
+            if (selectedBarrio && selectedBarrio.id_ciudad !== ciudad.id_ciudad) {
+                console.log('🧹 Limpiando barrio porque cambió ciudad');
+                setSelectedBarrio(null);
+            }
+        } else {
+            // Si se deselecciona la ciudad, limpiar barrio
+            console.log('🧹 Limpiando barrio porque se deseleccionó ciudad');
+            setSelectedBarrio(null);
+            setBarrios([]);
         }
         
-        notifyAddressChange(selectedDepartamento, ciudad, null);
+        // Notificar el cambio
+        onAddressChange({
+            departamento: selectedDepartamento,
+            ciudad,
+            barrio: selectedBarrio
+        });
     };
 
     // Manejar cambio de barrio
     const handleBarrioChange = (barrio: Barrio | null) => {
+        console.log('🔄 Cambiando barrio a:', barrio?.nombre);
+        
         setSelectedBarrio(barrio);
-        notifyAddressChange(selectedDepartamento, selectedCiudad, barrio);
-    };
-
-    // Notificar cambios al componente padre
-    const notifyAddressChange = (departamento: Departamento | null, ciudad: Ciudad | null, barrio: Barrio | null) => {
+        
+        // Notificar el cambio
         onAddressChange({
-            departamento,
-            ciudad,
+            departamento: selectedDepartamento,
+            ciudad: selectedCiudad,
             barrio
         });
     };
@@ -141,7 +176,7 @@ export const AddressSelector: React.FC<AddressSelectorProps> = ({
     return (
         <div className={`space-y-4 ${className}`}>
             {/* Selector de Departamento */}
-            <LocationSelector
+            <LocationSelector<Departamento>
                 label="Departamento *"
                 placeholder="Selecciona un departamento..."
                 options={departamentos}
@@ -153,7 +188,7 @@ export const AddressSelector: React.FC<AddressSelectorProps> = ({
             />
 
             {/* Selector de Ciudad */}
-            <LocationSelector
+            <LocationSelector<Ciudad>
                 label="Ciudad *"
                 placeholder={selectedDepartamento ? "Selecciona una ciudad..." : "Primero selecciona un departamento"}
                 options={ciudades}
@@ -165,7 +200,7 @@ export const AddressSelector: React.FC<AddressSelectorProps> = ({
             />
 
             {/* Selector de Barrio */}
-            <LocationSelector
+            <LocationSelector<Barrio>
                 label="Barrio"
                 placeholder={selectedCiudad ? "Selecciona un barrio (opcional)..." : "Primero selecciona una ciudad"}
                 options={barrios}

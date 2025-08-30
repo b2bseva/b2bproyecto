@@ -1,8 +1,7 @@
-
 import React, { useState, useEffect, createContext, useContext, useCallback, useRef } from 'react';
 import { HashRouter, Routes, Route, Link, useNavigate, useParams, useLocation, Outlet, Navigate } from 'react-router-dom';
 import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, BarChart, Bar, Legend } from 'recharts';
-import { Service, Category, Faq, User, UserRole, ChartDataPoint, ProviderOnboardingData, DocumentUpload } from './types';
+import { Service, Category, Faq, User, UserRole, ChartDataPoint, ProviderOnboardingData, DocumentUpload, ProviderApplicationStatus } from './types';
 import { MOCK_SERVICES, MOCK_CATEGORIES, MOCK_FAQS, getReservationsChartData, getRatingsChartData, getAdminUsersChartData, getAdminPublicationsChartData, authAPI } from './services/api';
 import { StarIcon, CheckCircleIcon, ChevronDownIcon, MagnifyingGlassIcon, SparklesIcon, HomeIcon, BuildingStorefrontIcon, CalendarDaysIcon, UserCircleIcon, ArrowRightOnRectangleIcon, EllipsisVerticalIcon, ChartBarIcon, PaintBrushIcon, CodeBracketIcon, PresentationChartLineIcon, BriefcaseIcon, PlusCircleIcon, UsersIcon, EyeIcon, EyeSlashIcon, ClockIcon, UploadCloudIcon, MapPinIcon, ExclamationCircleIcon } from './components/icons';
 import { AddressSelector } from './components/AddressSelector';
@@ -42,12 +41,15 @@ const initialOnboardingData: ProviderOnboardingData = {
 // --- AUTH CONTEXT & HOOK ---
 interface AuthContextType {
   user: User | null;
-  providerStatus: 'none' | 'pending' | 'approved';
+  providerStatus: 'none' | 'pending' | 'approved' | 'rejected';
+  providerApplication: ProviderApplicationStatus;
   login: (email: string, password: string) => Promise<void>;
   register: (data: { companyName: string; name: string; email: string; password: string }) => Promise<void>;
   logout: () => Promise<void>;
   updateUser: (data: Partial<User>) => void;
-  submitProviderApplication: () => void;
+  submitProviderApplication: (data: ProviderOnboardingData) => Promise<void>;
+  resubmitProviderApplication: (data: ProviderOnboardingData) => Promise<void>;
+  simulateApplicationReview: (status: 'approved' | 'rejected', observations?: string) => void;
   isLoading: boolean;
   error: string | null;
 }
@@ -55,10 +57,56 @@ interface AuthContextType {
 const AuthContext = createContext<AuthContextType | null>(null);
 
 const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
+  // Cargar estado inicial desde localStorage
+  const getInitialProviderStatus = (): 'none' | 'pending' | 'approved' | 'rejected' => {
+    return 'none';
+  };
+
+  const getInitialProviderApplication = (): ProviderApplicationStatus => {
+    return { status: 'none' };
+  };
+
   const [user, setUser] = useState<User | null>(null);
-  const [providerStatus, setProviderStatus] = useState<'none' | 'pending' | 'approved'>('none');
+  const [providerStatus, setProviderStatus] = useState<'none' | 'pending' | 'approved' | 'rejected'>(getInitialProviderStatus);
+  const [providerApplication, setProviderApplication] = useState<ProviderApplicationStatus>(getInitialProviderApplication);
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+
+  // Persistir cambios en el estado del proveedor por usuario
+  useEffect(() => {
+    if (user?.email) {
+      localStorage.setItem(`providerStatus_${user.email}`, providerStatus);
+    }
+  }, [providerStatus, user?.email]);
+
+  useEffect(() => {
+    if (user?.email) {
+      localStorage.setItem(`providerApplication_${user.email}`, JSON.stringify(providerApplication));
+    }
+  }, [providerApplication, user?.email]);
+
+  // Cargar estado persistente cuando el usuario se autentica
+  useEffect(() => {
+    if (user?.email) {
+      const savedProviderStatus = localStorage.getItem(`providerStatus_${user.email}`);
+      const savedProviderApplication = localStorage.getItem(`providerApplication_${user.email}`);
+      
+      if (savedProviderStatus && savedProviderStatus !== 'none') {
+        setProviderStatus(savedProviderStatus as 'none' | 'pending' | 'approved' | 'rejected');
+      }
+      
+      if (savedProviderApplication) {
+        try {
+          const parsed = JSON.parse(savedProviderApplication);
+          if (parsed.status !== 'none') {
+            setProviderApplication(parsed);
+          }
+        } catch (error) {
+          console.error('Error parsing saved provider application:', error);
+        }
+      }
+    }
+  }, [user?.email]);
 
   const login = async (email: string, password: string) => {
     try {
@@ -83,7 +131,7 @@ const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => 
       };
       
       setUser(newUser);
-      setProviderStatus('none'); // Estado inicial para clientes
+      // NO resetear providerStatus aquí, mantener el estado persistente
     } catch (err: any) {
       setError(err.detail || 'Error al iniciar sesión');
       throw err;
@@ -192,14 +240,86 @@ const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => 
     setUser(prevUser => prevUser ? { ...prevUser, ...data } : null);
   };
 
-  const submitProviderApplication = () => {
+  const submitProviderApplication = async (data: ProviderOnboardingData) => {
     if (user && user.role === 'client') {
-      setProviderStatus('pending');
+      setIsLoading(true);
+      try {
+        // Simular envío a la API
+        await new Promise(resolve => setTimeout(resolve, 1000));
+        
+        const newApplication: ProviderApplicationStatus = {
+          status: 'pending',
+          submittedAt: new Date().toISOString(),
+          canResubmit: false
+        };
+        
+        setProviderApplication(newApplication);
+        setProviderStatus('pending');
+        
+        // Guardar inmediatamente en localStorage con identificador único
+        if (user.email) {
+          localStorage.setItem(`providerStatus_${user.email}`, 'pending');
+          localStorage.setItem(`providerApplication_${user.email}`, JSON.stringify(newApplication));
+        }
+      } catch (error) {
+        setError('Error al enviar la solicitud');
+      } finally {
+        setIsLoading(false);
+      }
+    }
+  };
+
+  const resubmitProviderApplication = async (data: ProviderOnboardingData) => {
+    if (user && user.role === 'client') {
+      setIsLoading(true);
+      try {
+        // Simular envío a la API
+        await new Promise(resolve => setTimeout(resolve, 1000));
+        
+        const updatedApplication: ProviderApplicationStatus = {
+          status: 'pending',
+          submittedAt: new Date().toISOString(),
+          canResubmit: false
+        };
+        
+        setProviderApplication(updatedApplication);
+        setProviderStatus('pending');
+        
+        // Guardar inmediatamente en localStorage con identificador único
+        if (user.email) {
+          localStorage.setItem(`providerStatus_${user.email}`, 'pending');
+          localStorage.setItem(`providerApplication_${user.email}`, JSON.stringify(updatedApplication));
+        }
+      } catch (error) {
+        setError('Error al reenviar la solicitud');
+      } finally {
+        setIsLoading(false);
+      }
+    }
+  };
+
+  // Función para simular la revisión de solicitudes (solo para desarrollo)
+  const simulateApplicationReview = (status: 'approved' | 'rejected', observations?: string) => {
+    if (providerApplication.status === 'pending' && user?.email) {
+      const updatedApplication: ProviderApplicationStatus = {
+        ...providerApplication,
+        status,
+        reviewedAt: new Date().toISOString(),
+        observations: status === 'rejected' ? observations : undefined,
+        canResubmit: status === 'rejected'
+      };
+      
+      setProviderApplication(updatedApplication);
+      setProviderStatus(status);
+      
+      // Guardar inmediatamente en localStorage
+      localStorage.setItem(`providerStatus_${user.email}`, status);
+      localStorage.setItem(`providerApplication_${user.email}`, JSON.stringify(updatedApplication));
     }
   };
 
   return (
-    <AuthContext.Provider value={{ user, providerStatus, login, register, logout, updateUser, submitProviderApplication, isLoading, error }}>
+    <AuthContext.Provider value={{ user, providerStatus, providerApplication, login, register, logout, updateUser, submitProviderApplication, resubmitProviderApplication, simulateApplicationReview, isLoading, error }}>
       {children}
     </AuthContext.Provider>
   );
@@ -245,15 +365,21 @@ const Button: React.FC<{
   to?: string;
   type?: 'button' | 'submit' | 'reset';
   disabled?: boolean;
-}> = ({ children, onClick, variant = 'primary', className = '', to, type = 'button', disabled = false }) => {
-  const baseClasses = 'inline-flex items-center justify-center px-5 py-2.5 font-semibold rounded-lg transition-all duration-300 focus:outline-none focus:ring-2 focus:ring-offset-2 shadow-sm whitespace-nowrap disabled:opacity-50 disabled:cursor-not-allowed';
+  size?: 'sm' | 'md' | 'lg';
+}> = ({ children, onClick, variant = 'primary', className = '', to, type = 'button', disabled = false, size = 'md' }) => {
+  const baseClasses = 'inline-flex items-center justify-center font-semibold rounded-lg transition-all duration-300 focus:outline-none focus:ring-2 focus:ring-offset-2 shadow-sm whitespace-nowrap disabled:opacity-50 disabled:cursor-not-allowed';
+  const sizeClasses = {
+    sm: 'px-3 py-1.5 text-sm',
+    md: 'px-5 py-2.5',
+    lg: 'px-6 py-3 text-lg',
+  };
   const variantClasses = {
     primary: 'bg-primary-600 text-white hover:bg-primary-700 focus:ring-primary-500',
     secondary: 'bg-primary-100 text-primary-700 hover:bg-primary-200 focus:ring-primary-500',
     ghost: 'bg-transparent text-slate-600 hover:bg-slate-100 focus:ring-slate-500 shadow-none',
   };
   
-  const combinedClasses = `${baseClasses} ${variantClasses[variant]} ${className}`;
+  const combinedClasses = `${baseClasses} ${sizeClasses[size]} ${variantClasses[variant]} ${className}`;
 
   if (to) {
     return <Link to={to} className={combinedClasses}>{children}</Link>;
@@ -720,6 +846,10 @@ const LoginPage: React.FC = () => {
         }
     };
 
+    const handleResetPassword = () => {
+        navigate('/reset-password');
+    };
+
     return (
         <MainLayout>
             <div className="min-h-[60vh] flex items-center justify-center bg-slate-50">
@@ -774,6 +904,15 @@ const LoginPage: React.FC = () => {
                             disabled={isLoading}
                         >
                             {isLoading ? 'Iniciando sesión...' : 'Iniciar sesión'}
+                        </Button>
+                        
+                        <Button 
+                            type="button" 
+                            variant="ghost" 
+                            className="w-full"
+                            onClick={handleResetPassword}
+                        >
+                            Restablecer contraseña
                         </Button>
                     </form>
                 </div>
@@ -886,7 +1025,7 @@ const RegisterPage: React.FC = () => {
 
 
 const DashboardLayout: React.FC = () => {
-    const { user, logout } = useAuth();
+    const { user, logout, providerStatus } = useAuth();
     const navigate = useNavigate();
     const location = useLocation();
 
@@ -936,13 +1075,32 @@ const DashboardLayout: React.FC = () => {
                     
                     {/* Botón Convertirme en Proveedor para clientes */}
                     {user?.role === 'client' && (
-                        <Link
-                            to="/dashboard/become-provider"
-                            className="flex items-center px-4 py-2.5 text-sm font-medium rounded-lg transition-colors text-primary-600 hover:bg-primary-50 hover:text-primary-700"
-                        >
-                            <SparklesIcon className="w-5 h-5 mr-3" />
-                            Convertirme en Proveedor
-                        </Link>
+                        <>
+                            {providerStatus === 'none' && (
+                                <Link
+                                    to="/dashboard/become-provider"
+                                    className="flex items-center px-4 py-2.5 text-sm font-medium rounded-lg transition-colors text-primary-600 hover:bg-primary-50 hover:text-primary-700"
+                                >
+                                    <SparklesIcon className="w-5 h-5 mr-3" />
+                                    Convertirme en Proveedor
+                                </Link>
+                            )}
+                            {providerStatus === 'pending' && (
+                                <div className="flex items-center px-4 py-2.5 text-sm font-medium rounded-lg bg-blue-50 text-blue-600 cursor-not-allowed">
+                                    <ClockIcon className="w-5 h-5 mr-3" />
+                                    Solicitud en Revisión
+                                </div>
+                            )}
+                            {providerStatus === 'rejected' && (
+                                <Link
+                                    to="/dashboard/become-provider"
+                                    className="flex items-center px-4 py-2.5 text-sm font-medium rounded-lg transition-colors text-amber-600 hover:bg-amber-50 hover:text-amber-700"
+                                >
+                                    <ExclamationCircleIcon className="w-5 h-5 mr-3" />
+                                    Corregir Solicitud
+                                </Link>
+                            )}
+                        </>
                     )}
                 </nav>
                 <div className="px-4 py-4 border-t border-slate-200">
@@ -973,7 +1131,15 @@ const DashboardLayout: React.FC = () => {
 };
 
 const DashboardPage: React.FC = () => {
-    return <DashboardHome />;
+    const { user } = useAuth();
+    
+    return (
+        <div>
+            {/* Solo mostrar notificación en el dashboard del cliente */}
+            {user?.role === 'client' && <ProviderApplicationNotification />}
+            <DashboardHome />
+        </div>
+    );
 };
 
 const AdminDashboardPage: React.FC = () => {
@@ -1507,17 +1673,35 @@ const Step5_Review: React.FC<{data: ProviderOnboardingData}> = ({data}) => {
 const ProviderOnboardingPage: React.FC = () => {
     const [step, setStep] = useState(1);
     const [data, setData] = useState<ProviderOnboardingData>(initialOnboardingData);
-    const { submitProviderApplication } = useAuth();
+    const { submitProviderApplication, resubmitProviderApplication, providerStatus, providerApplication } = useAuth();
     const navigate = useNavigate();
+
+    // Cargar datos previos si es una solicitud rechazada
+    useEffect(() => {
+        if (providerStatus === 'rejected' && providerApplication) {
+            // Aquí se podrían cargar los datos previos de la solicitud rechazada
+            // Por ahora mantenemos los datos iniciales
+            console.log('Cargando datos de solicitud rechazada:', providerApplication);
+        }
+    }, [providerStatus, providerApplication]);
 
     const nextStep = () => setStep(s => Math.min(s + 1, 5));
     const prevStep = () => setStep(s => Math.max(s - 1, 1));
     
-    const handleSubmit = () => {
-        submitProviderApplication();
-        alert("¡Gracias! Tu perfil de proveedor está en revisión. Te notificaremos en un plazo máximo de 3 días hábiles.");
-        navigate('/dashboard');
-    }
+    const handleSubmit = async () => {
+        try {
+            if (providerStatus === 'rejected') {
+                await resubmitProviderApplication(data);
+                alert("¡Gracias! Tu solicitud corregida ha sido enviada para revisión. Te notificaremos en un plazo máximo de 3 días hábiles.");
+            } else {
+                await submitProviderApplication(data);
+                alert("¡Gracias! Tu perfil de proveedor está en revisión. Te notificaremos en un plazo máximo de 3 días hábiles.");
+            }
+            window.location.hash = '#/dashboard';
+        } catch (error) {
+            alert("Error al enviar la solicitud. Por favor, inténtalo nuevamente.");
+        }
+    };
 
     const renderStep = () => {
         switch (step) {
@@ -1532,13 +1716,71 @@ const ProviderOnboardingPage: React.FC = () => {
     
     const allRequiredDocsUploaded = Object.values(data.documents).every((doc: DocumentUpload) => doc.isOptional || doc.status === 'uploaded');
 
+    // Verificar si ya hay una solicitud pendiente
+    if (providerStatus === 'pending') {
+        return (
+            <div className="bg-white p-8 rounded-xl shadow-md border border-blue-200 text-center max-w-4xl mx-auto">
+                <ClockIcon className="w-16 h-16 mx-auto text-blue-500" />
+                <h2 className="mt-4 text-2xl font-bold text-slate-800">Ya tienes una solicitud en revisión</h2>
+                <p className="mt-2 text-slate-600 max-w-xl mx-auto">
+                    Ya has enviado una solicitud para convertirte en proveedor y está siendo revisada por nuestro equipo. 
+                    No puedes enviar otra solicitud hasta que se complete la revisión.
+                </p>
+                {providerApplication.submittedAt && (
+                    <div className="mt-4 p-3 bg-blue-50 rounded-lg border border-blue-200">
+                        <p className="text-sm text-blue-700">
+                            <strong>Fecha de envío:</strong> {new Date(providerApplication.submittedAt).toLocaleDateString('es-ES')}
+                        </p>
+                    </div>
+                )}
+                <div className="mt-6">
+                    <Button variant="primary" onClick={() => window.location.hash = '#/dashboard'}>
+                        Volver al dashboard
+                    </Button>
+                </div>
+            </div>
+        );
+    }
+
+    // Verificar si la solicitud fue aprobada
+    if (providerStatus === 'approved') {
+        return (
+            <div className="bg-white p-8 rounded-xl shadow-md border border-green-200 text-center max-w-4xl mx-auto">
+                <CheckCircleIcon className="w-16 h-16 mx-auto text-green-500" />
+                <h2 className="mt-4 text-2xl font-bold text-slate-800">¡Ya eres proveedor!</h2>
+                <p className="mt-2 text-slate-600 max-w-xl mx-auto">
+                    Tu solicitud ya fue aprobada. Ya puedes comenzar a ofrecer tus servicios en la plataforma.
+                </p>
+                <div className="mt-6">
+                    <Button variant="primary" onClick={() => window.location.hash = '#/dashboard'}>
+                        Ir al dashboard
+                    </Button>
+                </div>
+            </div>
+        );
+    }
+
     return (
         <div className="bg-white p-6 sm:p-8 rounded-xl shadow-md border border-slate-200/80 max-w-4xl mx-auto">
-            <h1 className="text-2xl font-bold text-slate-900">Registro de Proveedor</h1>
-            <p className="text-slate-500 mt-1">Completá los 5 pasos para empezar a ofrecer tus servicios.</p>
+            <h1 className="text-2xl font-bold text-slate-900">
+                {providerStatus === 'rejected' ? 'Corregir solicitud de proveedor' : 'Registro de Proveedor'}
+            </h1>
+            <p className="text-slate-500 mt-1">
+                {providerStatus === 'rejected' 
+                    ? 'Corregí los puntos señalados y reenviá tu solicitud.'
+                    : 'Completá los 5 pasos para empezar a ofrecer tus servicios.'
+                }
+            </p>
             <div className="my-8">
                 <OnboardingProgressBar currentStep={step} />
             </div>
+            
+            {providerStatus === 'rejected' && providerApplication.observations && (
+                <div className="mb-6 p-4 bg-amber-50 rounded-lg border border-amber-200">
+                    <h3 className="font-semibold text-amber-800 mb-2">Observaciones para corregir:</h3>
+                    <p className="text-amber-700">{providerApplication.observations}</p>
+                </div>
+            )}
             
             <div className="mt-8 min-h-[300px]">
                 {renderStep()}
@@ -1551,7 +1793,9 @@ const ProviderOnboardingPage: React.FC = () => {
                 <div className="space-x-4">
                     <Button variant="ghost" onClick={() => alert('¡Borrador guardado!')}>Guardar borrador</Button>
                     {step < 5 && <Button variant="primary" onClick={nextStep}>Siguiente</Button>}
-                    {step === 5 && <Button variant="primary" onClick={handleSubmit} disabled={!allRequiredDocsUploaded}>Enviar a verificación</Button>}
+                    {step === 5 && <Button variant="primary" onClick={handleSubmit} disabled={!allRequiredDocsUploaded}>
+                        {providerStatus === 'rejected' ? 'Reenviar solicitud corregida' : 'Enviar a verificación'}
+                    </Button>}
                 </div>
             </div>
         </div>
@@ -1560,14 +1804,98 @@ const ProviderOnboardingPage: React.FC = () => {
 
 // Componentes del dashboard para diferentes roles
 const ClientDashboardHome: React.FC = () => {
-    const { providerStatus, user } = useAuth();
+    const { providerStatus, providerApplication, user } = useAuth();
+    const navigate = useNavigate();
 
     if (providerStatus === 'pending') {
         return (
-             <div className="bg-white p-8 rounded-xl shadow-md border border-blue-200 text-center">
+            <div className="bg-white p-8 rounded-xl shadow-md border border-blue-200 text-center">
                 <ClockIcon className="w-16 h-16 mx-auto text-blue-500" />
-                <h2 className="mt-4 text-2xl font-bold text-slate-800">Tu perfil de proveedor está en revisión</h2>
-                <p className="mt-2 text-slate-600 max-w-xl mx-auto">Hemos recibido tu solicitud. Nuestro equipo la revisará y te notificaremos en un plazo máximo de 3 días hábiles. ¡Gracias por tu paciencia!</p>
+                <h2 className="mt-4 text-2xl font-bold text-slate-800">Tu solicitud está en revisión</h2>
+                <p className="mt-2 text-slate-600 max-w-xl mx-auto">
+                    Hemos recibido tu solicitud para convertirte en proveedor. 
+                    Nuestro equipo la revisará y te notificaremos en un plazo máximo de 3 días hábiles.
+                </p>
+                {providerApplication.submittedAt && (
+                    <div className="mt-4 p-3 bg-blue-50 rounded-lg border border-blue-200">
+                        <p className="text-sm text-blue-700">
+                            <strong>Fecha de envío:</strong> {new Date(providerApplication.submittedAt).toLocaleDateString('es-ES')}
+                        </p>
+                    </div>
+                )}
+                <div className="mt-6">
+                    <Button variant="secondary" disabled>
+                        Solicitud en revisión
+                    </Button>
+                </div>
+            </div>
+        );
+    }
+
+    if (providerStatus === 'rejected') {
+        return (
+            <div className="bg-white p-8 rounded-xl shadow-md border border-red-200 text-center">
+                <ExclamationCircleIcon className="w-16 h-16 mx-auto text-red-500" />
+                <h2 className="mt-4 text-2xl font-bold text-slate-800">Solicitud rechazada</h2>
+                <p className="mt-2 text-slate-600 max-w-xl mx-auto">
+                    Tu solicitud para convertirte en proveedor ha sido rechazada. 
+                    Revisa las observaciones y envía las correcciones necesarias.
+                </p>
+                
+                {providerApplication.observations && (
+                    <div className="mt-4 p-4 bg-red-50 rounded-lg border border-red-200 text-left">
+                        <h3 className="font-semibold text-red-800 mb-2">Observaciones del administrador:</h3>
+                        <p className="text-red-700">{providerApplication.observations}</p>
+                    </div>
+                )}
+
+                {providerApplication.documentObservations && Object.keys(providerApplication.documentObservations).length > 0 && (
+                    <div className="mt-4 p-4 bg-amber-50 rounded-lg border border-amber-200 text-left">
+                        <h3 className="font-semibold text-amber-800 mb-2">Documentos que requieren corrección:</h3>
+                        <ul className="text-amber-700 space-y-1">
+                            {Object.entries(providerApplication.documentObservations).map(([docId, observation]) => (
+                                <li key={docId} className="flex items-start">
+                                    <span className="text-red-500 mr-2">•</span>
+                                    <span><strong>{docId}:</strong> {observation}</span>
+                                </li>
+                            ))}
+                        </ul>
+                    </div>
+                )}
+
+                <div className="mt-6 space-x-4">
+                    <Button variant="primary" onClick={() => window.location.hash = '#/dashboard/become-provider'}>
+                        Corregir y reenviar
+                    </Button>
+                    <Button variant="secondary" onClick={() => window.location.hash = '#/dashboard'}>
+                        Ver dashboard
+                    </Button>
+                </div>
+            </div>
+        );
+    }
+
+    if (providerStatus === 'approved') {
+        return (
+            <div className="bg-white p-8 rounded-xl shadow-md border border-green-200 text-center">
+                <CheckCircleIcon className="w-16 h-16 mx-auto text-green-500" />
+                <h2 className="mt-4 text-2xl font-bold text-slate-800">¡Solicitud aprobada!</h2>
+                <p className="mt-2 text-slate-600 max-w-xl mx-auto">
+                    ¡Felicitaciones! Tu solicitud para convertirte en proveedor ha sido aprobada. 
+                    Ya puedes comenzar a ofrecer tus servicios en la plataforma.
+                </p>
+                {providerApplication.reviewedAt && (
+                    <div className="mt-4 p-3 bg-green-50 rounded-lg border border-green-200">
+                        <p className="text-sm text-green-700">
+                            <strong>Aprobado el:</strong> {new Date(providerApplication.reviewedAt).toLocaleDateString('es-ES')}
+                        </p>
+                    </div>
+                )}
+                <div className="mt-6">
+                    <Button variant="primary" onClick={() => window.location.hash = '#/dashboard'}>
+                        Ir al dashboard de proveedor
+                    </Button>
+                </div>
             </div>
         );
     }
@@ -1580,7 +1908,80 @@ const ClientDashboardHome: React.FC = () => {
                 </h1>
                 <p className="text-slate-600">Gracias por usar nuestra plataforma de servicios empresariales.</p>
             </div>
-            {/* Dashboard vacío para clientes */}
+            
+            {/* Sección para convertirse en proveedor - Solo mostrar si no hay solicitud pendiente */}
+            {providerStatus === 'none' && (
+                <div className="bg-gradient-to-r from-primary-50 to-primary-100 p-6 rounded-xl border border-primary-200">
+                    <div className="text-center">
+                        <BuildingStorefrontIcon className="w-16 h-16 mx-auto text-primary-600 mb-4" />
+                        <h2 className="text-2xl font-bold text-primary-800 mb-2">
+                            ¿Querés convertirte en proveedor?
+                        </h2>
+                        <p className="text-primary-700 mb-6 max-w-2xl mx-auto">
+                            Ofrecé tus servicios a empresas y expandí tu negocio. 
+                            Solo necesitás completar un proceso de verificación simple.
+                        </p>
+                        <Button variant="primary" onClick={() => window.location.hash = '#/dashboard/become-provider'}>
+                            Comenzar proceso
+                        </Button>
+                    </div>
+                </div>
+            )}
+
+            {/* Mensaje cuando hay solicitud pendiente */}
+            {(providerStatus as string) === 'pending' && (
+                <div className="bg-blue-50 border border-blue-200 rounded-xl p-6 text-center">
+                    <ClockIcon className="w-16 h-16 mx-auto text-blue-500 mb-4" />
+                    <h2 className="text-2xl font-bold text-blue-800 mb-2">
+                        Solicitud en Proceso
+                    </h2>
+                    <p className="text-blue-700 mb-4 max-w-2xl mx-auto">
+                        Ya tienes una solicitud para convertirte en proveedor en revisión. 
+                        No puedes enviar otra solicitud hasta que se complete la revisión.
+                    </p>
+                    <div className="inline-flex items-center px-4 py-2 bg-blue-100 text-blue-800 rounded-lg font-medium">
+                        <ClockIcon className="w-5 h-5 mr-2" />
+                        En revisión por administradores
+                    </div>
+                </div>
+            )}
+
+            {/* Historial de solicitudes - Solo mostrar si hay solicitud aprobada o rechazada */}
+            {providerApplication && (providerApplication.status === 'approved' || providerApplication.status === 'rejected') && (
+                <div className="mt-8 bg-white p-6 rounded-xl shadow-md border border-slate-200">
+                    <h3 className="text-lg font-semibold text-slate-800 mb-4">Historial de solicitudes</h3>
+                    <div className="space-y-3">
+                        <div className="flex items-center justify-between p-3 bg-slate-50 rounded-lg">
+                            <div className="flex items-center">
+                                {providerApplication.status === 'rejected' && <ExclamationCircleIcon className="w-5 h-5 text-red-500 mr-3" />}
+                                {providerApplication.status === 'approved' && <CheckCircleIcon className="w-5 h-5 text-green-500 mr-3" />}
+                                <div>
+                                    <p className="font-medium text-slate-800">
+                                        Solicitud de proveedor - {providerApplication.status === 'rejected' ? 'Rechazada' : 'Aprobada'}
+                                    </p>
+                                    {providerApplication.submittedAt && (
+                                        <p className="text-sm text-slate-600">
+                                            Enviada el {new Date(providerApplication.submittedAt).toLocaleDateString('es-ES')}
+                                        </p>
+                                    )}
+                                </div>
+                            </div>
+                            <div className="text-right">
+                                {providerApplication.status === 'rejected' && (
+                                    <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-red-100 text-red-800">
+                                        Rechazada
+                                    </span>
+                                )}
+                                {providerApplication.status === 'approved' && (
+                                    <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-green-100 text-green-800">
+                                        Aprobada
+                                    </span>
+                                )}
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            )}
         </div>
     )
 };
@@ -1614,11 +2015,39 @@ const ProviderDashboardHome: React.FC = () => {
 };
 
 const AdminDashboardHome: React.FC = () => {
-    const { user } = useAuth();
+    const { user, providerApplication, simulateApplicationReview } = useAuth();
     return (
         <div>
             <h1 className="text-3xl font-bold text-slate-800">¡Bienvenido/a {user?.name || 'Usuario'}!</h1>
             <p className="text-slate-500 mt-1">Panel de Administrador - Visión general del estado de la plataforma.</p>
+            
+            {/* Panel de revisión de solicitudes (solo para desarrollo) */}
+            {providerApplication && providerApplication.status === 'pending' && (
+                <div className="mt-6 p-6 bg-amber-50 rounded-xl border border-amber-200">
+                    <h2 className="text-lg font-semibold text-amber-800 mb-4">Revisión de solicitud de proveedor</h2>
+                    <p className="text-amber-700 mb-4">
+                        Hay una solicitud pendiente de revisión. 
+                        Enviada el {providerApplication.submittedAt ? new Date(providerApplication.submittedAt).toLocaleDateString('es-ES') : 'Fecha no disponible'}
+                    </p>
+                    <div className="space-x-4">
+                        <Button 
+                            variant="primary" 
+                            size="sm"
+                            onClick={() => simulateApplicationReview('approved')}
+                        >
+                            Aprobar solicitud
+                        </Button>
+                        <Button 
+                            variant="secondary" 
+                            size="sm"
+                            onClick={() => simulateApplicationReview('rejected', 'Documentos RUC y Patente Municipal vencidos. Favor actualizar antes del 30/12/2024.')}
+                        >
+                            Rechazar con observaciones
+                        </Button>
+                    </div>
+                </div>
+            )}
+            
              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mt-8">
                 <DashboardStatCard title="Usuarios Totales" value="300" icon={<UsersIcon className="w-6 h-6"/>} change="+50 este mes" />
                 <DashboardStatCard title="Publicaciones Totales" value="350" icon={<BuildingStorefrontIcon className="w-6 h-6"/>} change="+30 este mes" />
@@ -1638,6 +2067,76 @@ const AdminDashboardHome: React.FC = () => {
             </div>
         </div>
     );
+};
+
+// Componente de notificación del estado de la solicitud
+const ProviderApplicationNotification: React.FC = () => {
+    const { providerStatus, providerApplication } = useAuth();
+    const navigate = useNavigate();
+    
+    if (providerStatus === 'none') return null;
+    
+    if (providerStatus === 'pending') {
+        return (
+            <div className="bg-blue-50 border border-blue-200 rounded-lg p-4 mb-6">
+                <div className="flex items-start">
+                    <ClockIcon className="w-5 h-5 text-blue-500 mt-0.5 mr-3 flex-shrink-0" />
+                    <div className="flex-1">
+                        <h3 className="text-sm font-medium text-blue-800">Solicitud en revisión</h3>
+                        <p className="text-sm text-blue-700 mt-1">
+                            Tu solicitud para convertirte en proveedor está siendo revisada. 
+                            Te notificaremos cuando se complete la revisión.
+                        </p>
+                        {providerApplication.submittedAt && (
+                            <p className="text-xs text-blue-600 mt-2">
+                                Enviada el {new Date(providerApplication.submittedAt).toLocaleDateString('es-ES')}
+                            </p>
+                        )}
+                    </div>
+                </div>
+            </div>
+        );
+    }
+    
+    if (providerStatus === 'rejected') {
+        return (
+            <div className="bg-red-50 border border-red-200 rounded-lg p-4 mb-6">
+                <div className="flex items-start">
+                    <ExclamationCircleIcon className="w-5 h-5 text-red-500 mt-0.5 mr-3 flex-shrink-0" />
+                    <div className="flex-1">
+                        <h3 className="text-sm font-medium text-red-800">Solicitud rechazada</h3>
+                        <p className="text-sm text-red-700 mt-1">
+                            Tu solicitud fue rechazada. Revisa las observaciones y envía las correcciones necesarias.
+                        </p>
+                        <div className="mt-3">
+                            <Button variant="primary" size="sm" onClick={() => window.location.hash = '#/dashboard/become-provider'}>
+                                Corregir y reenviar
+                            </Button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        );
+    }
+    
+    if (providerStatus === 'approved') {
+        return (
+            <div className="bg-green-50 border border-green-200 rounded-lg p-4 mb-6">
+                <div className="flex items-start">
+                    <CheckCircleIcon className="w-5 h-5 text-green-500 mt-0.5 mr-3 flex-shrink-0" />
+                    <div className="flex-1">
+                        <h3 className="text-sm font-medium text-green-800">¡Solicitud aprobada!</h3>
+                        <p className="text-sm text-green-700 mt-1">
+                            Tu solicitud para convertirte en proveedor fue aprobada. 
+                            Ya puedes comenzar a ofrecer tus servicios.
+                        </p>
+                    </div>
+                </div>
+            </div>
+        );
+    }
+    
+    return null;
 };
 
 // Función para determinar qué dashboard mostrar
@@ -1660,6 +2159,116 @@ const ProtectedRoute: React.FC<{ children: React.ReactNode; }> = ({ children }) 
     return <>{children}</>;
 };
 
+const ResetPasswordPage: React.FC = () => {
+    const navigate = useNavigate();
+    const [email, setEmail] = useState('');
+    const [isLoading, setIsLoading] = useState(false);
+    const [error, setError] = useState<string | null>(null);
+    const [success, setSuccess] = useState(false);
+
+    const handleSubmit = async (e: React.FormEvent) => {
+        e.preventDefault();
+        setIsLoading(true);
+        setError(null);
+
+        try {
+            await authAPI.resetPassword(email);
+            setSuccess(true);
+            
+            // Redirigir a login después de 3 segundos
+            setTimeout(() => {
+                navigate('/login');
+            }, 3000);
+        } catch (err: any) {
+            setError(err.detail || 'Error al enviar el correo de restablecimiento');
+        } finally {
+            setIsLoading(false);
+        }
+    };
+
+    if (success) {
+        return (
+            <MainLayout>
+                <div className="min-h-[60vh] flex items-center justify-center bg-slate-50">
+                    <div className="w-full max-w-md p-8 space-y-8 bg-white rounded-2xl shadow-xl border border-slate-200/80 m-4 text-center">
+                        <div className="text-green-600 mb-4">
+                            <CheckCircleIcon className="w-16 h-16 mx-auto" />
+                        </div>
+                        <h2 className="text-2xl font-bold text-slate-900">Correo enviado</h2>
+                        <p className="text-slate-600">
+                            Se ha enviado un correo con instrucciones para cambiar su contraseña. 
+                            Revise su bandeja de entrada o correo no deseado.
+                        </p>
+                        <p className="text-sm text-slate-500">
+                            Serás redirigido a la página de login en unos segundos...
+                        </p>
+                        <Button 
+                            variant="primary" 
+                            onClick={() => navigate('/login')}
+                            className="mt-4"
+                        >
+                            Volver al login
+                        </Button>
+                    </div>
+                </div>
+            </MainLayout>
+        );
+    }
+
+    return (
+        <MainLayout>
+            <div className="min-h-[60vh] flex items-center justify-center bg-slate-50">
+                <div className="w-full max-w-md p-8 space-y-8 bg-white rounded-2xl shadow-xl border border-slate-200/80 m-4">
+                    <div className="text-center">
+                        <h2 className="text-3xl font-bold text-slate-900">Restablecer contraseña</h2>
+                        <p className="mt-2 text-sm text-slate-500">
+                            Ingresa tu correo electrónico y te enviaremos instrucciones para cambiar tu contraseña.
+                        </p>
+                    </div>
+                    
+                    {error && <Alert variant="error">{error}</Alert>}
+                    
+                    <form onSubmit={handleSubmit} className="space-y-6">
+                        <div>
+                            <label htmlFor="email" className="text-sm font-medium text-slate-700 block mb-2">
+                                Correo electrónico
+                            </label>
+                            <input
+                                type="email"
+                                name="email"
+                                id="email"
+                                value={email}
+                                onChange={(e) => setEmail(e.target.value)}
+                                className="w-full px-4 py-2 border border-slate-300 rounded-lg focus:ring-primary-500 focus:border-primary-500"
+                                placeholder="tu@email.com"
+                                required
+                            />
+                        </div>
+                        
+                        <Button 
+                            type="submit" 
+                            variant="primary" 
+                            className="w-full"
+                            disabled={isLoading}
+                        >
+                            {isLoading ? 'Enviando...' : 'Cambiar contraseña'}
+                        </Button>
+                        
+                        <Button 
+                            type="button" 
+                            variant="ghost" 
+                            className="w-full"
+                            onClick={() => navigate('/login')}
+                        >
+                            Volver al login
+                        </Button>
+                    </form>
+                </div>
+            </div>
+        </MainLayout>
+    );
+};
+
 // --- MAIN APP ---
 const App: React.FC = () => {
     return (
@@ -1671,6 +2280,7 @@ const App: React.FC = () => {
                     <Route path="/service/:id" element={<ServiceDetailPage />} />
                     <Route path="/login" element={<LoginPage />} />
                     <Route path="/register" element={<RegisterPage />} />
+                    <Route path="/reset-password" element={<ResetPasswordPage />} />
                     <Route 
                         path="/dashboard" 
                         element={<ProtectedRoute><DashboardLayout /></ProtectedRoute>}

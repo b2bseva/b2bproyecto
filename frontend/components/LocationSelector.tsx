@@ -1,24 +1,19 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { MagnifyingGlassIcon, ChevronDownIcon } from './icons';
 
-interface LocationOption {
-    id: number;
-    nombre: string;
-}
-
-interface LocationSelectorProps {
+interface LocationSelectorProps<T extends { id: number; nombre: string }> {
     label: string;
     placeholder: string;
-    options: LocationOption[];
-    value: LocationOption | null;
-    onChange: (option: LocationOption | null) => void;
+    options: T[];
+    value: T | null;
+    onChange: (option: T | null) => void;
     isLoading?: boolean;
     disabled?: boolean;
     error?: string;
     className?: string;
 }
 
-export const LocationSelector: React.FC<LocationSelectorProps> = ({
+export const LocationSelector = <T extends { id: number; nombre: string }>({
     label,
     placeholder,
     options,
@@ -28,10 +23,10 @@ export const LocationSelector: React.FC<LocationSelectorProps> = ({
     disabled = false,
     error,
     className = ''
-}) => {
+}: LocationSelectorProps<T>) => {
     const [isOpen, setIsOpen] = useState(false);
     const [searchTerm, setSearchTerm] = useState('');
-    const [filteredOptions, setFilteredOptions] = useState<LocationOption[]>(options);
+    const [filteredOptions, setFilteredOptions] = useState<T[]>(options);
     const dropdownRef = useRef<HTMLDivElement>(null);
 
     // Filtrar opciones basado en el término de búsqueda
@@ -51,7 +46,6 @@ export const LocationSelector: React.FC<LocationSelectorProps> = ({
         const handleClickOutside = (event: MouseEvent) => {
             if (dropdownRef.current && !dropdownRef.current.contains(event.target as Node)) {
                 setIsOpen(false);
-                setSearchTerm('');
             }
         };
 
@@ -68,13 +62,15 @@ export const LocationSelector: React.FC<LocationSelectorProps> = ({
         }
     }, [value]);
 
-    const handleSelect = (option: LocationOption) => {
+    const handleSelect = (option: T) => {
+        console.log('🎯 Seleccionando:', option.nombre);
         onChange(option);
         setIsOpen(false);
         setSearchTerm(option.nombre);
     };
 
     const handleClear = () => {
+        console.log('🧹 Limpiando selección');
         onChange(null);
         setSearchTerm('');
         setIsOpen(false);

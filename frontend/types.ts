@@ -92,6 +92,7 @@ export interface DocumentUpload {
   file?: File;
   isOptional: boolean;
   description: string;
+  observations?: string; // Observaciones del administrador
 }
 
 export interface ProviderOnboardingData {
@@ -115,4 +116,15 @@ export interface ProviderOnboardingData {
     useFiscalAddress: boolean;
   };
   documents: Record<string, DocumentUpload>;
+}
+
+// Nueva interfaz para el estado de la solicitud de proveedor
+export interface ProviderApplicationStatus {
+  status: 'none' | 'pending' | 'approved' | 'rejected';
+  submittedAt?: string;
+  reviewedAt?: string;
+  observations?: string; // Observaciones generales del administrador
+  documentObservations?: Record<string, string>; // Observaciones por documento
+  canResubmit?: boolean;
+  resubmissionDeadline?: string;
 }

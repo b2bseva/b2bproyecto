@@ -18,21 +18,24 @@ const API_BASE_URL = getApiBaseUrl();
 
 // Interfaces para los datos de ubicación
 export interface Departamento {
-    id_departamento: number;
+    id: number;
     nombre: string;
+    id_departamento: number;
     created_at: string;
 }
 
 export interface Ciudad {
-    id_ciudad: number;
+    id: number;
     nombre: string;
+    id_ciudad: number;
     id_departamento: number;
     created_at: string;
 }
 
 export interface Barrio {
-    id_barrio: number;
+    id: number;
     nombre: string;
+    id_barrio: number;
     id_ciudad: number;
 }
 
@@ -57,7 +60,12 @@ export const locationsAPI = {
                 throw await handleApiError(response);
             }
             
-            return await response.json();
+            const data = await response.json();
+            // Mapear los datos para incluir la propiedad id
+            return data.map((dept: any) => ({
+                ...dept,
+                id: dept.id_departamento
+            }));
         } catch (error) {
             console.error('❌ Error al obtener departamentos:', error);
             throw error;
@@ -73,7 +81,12 @@ export const locationsAPI = {
                 throw await handleApiError(response);
             }
             
-            return await response.json();
+            const data = await response.json();
+            // Mapear los datos para incluir la propiedad id
+            return data.map((ciudad: any) => ({
+                ...ciudad,
+                id: ciudad.id_ciudad
+            }));
         } catch (error) {
             console.error('❌ Error al obtener ciudades:', error);
             throw error;
@@ -89,7 +102,12 @@ export const locationsAPI = {
                 throw await handleApiError(response);
             }
             
-            return await response.json();
+            const data = await response.json();
+            // Mapear los datos para incluir la propiedad id
+            return data.map((barrio: any) => ({
+                ...barrio,
+                id: barrio.id_barrio
+            }));
         } catch (error) {
             console.error('❌ Error al obtener barrios:', error);
             throw error;
