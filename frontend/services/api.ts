@@ -170,6 +170,33 @@ export const authAPI = {
             }
             throw error;
         }
+    },
+
+    // Restablecer contraseña
+    async resetPassword(email: string): Promise<{ message: string }> {
+        try {
+            console.log('🔑 Intentando restablecer contraseña para:', email);
+            const response = await fetch(`${API_BASE_URL}/auth/reset-password`, {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                },
+                body: JSON.stringify({ email }),
+            });
+
+            if (!response.ok) {
+                const error = await handleApiError(response);
+                throw error;
+            }
+
+            return await response.json();
+        } catch (error) {
+            console.error('❌ Error en resetPassword:', error);
+            if (error instanceof Error) {
+                throw { detail: error.message };
+            }
+            throw error;
+        }
     }
 };
 

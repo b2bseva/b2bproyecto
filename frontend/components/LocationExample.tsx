@@ -87,7 +87,7 @@ export const LocationExample: React.FC = () => {
                 </p>
                 
                 <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                    <LocationSelector
+                    <LocationSelector<Departamento>
                         label="Departamento"
                         placeholder="Selecciona departamento..."
                         options={departamentos}
@@ -95,7 +95,7 @@ export const LocationExample: React.FC = () => {
                         onChange={setSelectedDepartamento}
                     />
                     
-                    <LocationSelector
+                    <LocationSelector<Ciudad>
                         label="Ciudad"
                         placeholder={selectedDepartamento ? "Selecciona ciudad..." : "Primero departamento"}
                         options={ciudades}
@@ -104,7 +104,7 @@ export const LocationExample: React.FC = () => {
                         disabled={!selectedDepartamento}
                     />
                     
-                    <LocationSelector
+                    <LocationSelector<Barrio>
                         label="Barrio"
                         placeholder={selectedCiudad ? "Selecciona barrio..." : "Primero ciudad"}
                         options={barrios}
